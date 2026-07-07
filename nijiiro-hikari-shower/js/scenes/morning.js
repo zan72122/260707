@@ -7,11 +7,11 @@ import { drawMorningBackground, drawWindowFrame, drawSpoon, drawCurtain, drawFlo
 import { RAINBOW, clamp, dist, drawGlow, rand } from '../core/utils.js';
 import { audio } from '../core/audio.js';
 
-const DISCOVERIES = 6;
+const DISCOVERIES = 11; // シーン固有6 + 共通コンボ5
 
 export class MorningScene extends SceneBase {
   constructor(engine) {
-    super(engine, 'morning', DISCOVERIES, { sunMode: true, spread: 0.075 });
+    super(engine, 'morning', DISCOVERIES, { source: 'sun', spread: 0.075 });
     this.curtainOpen = 0.8; // 0=閉 1=開
     this.flower = { x: 0, y: 0, size: 40, petals: new Array(6).fill(null), tint: new Array(6).fill(0), glow: 0, bloom: 1 };
     this.cup = { x: 0, y: 0, size: 62 };
@@ -88,11 +88,13 @@ export class MorningScene extends SceneBase {
   sceneUpdate(dt) {
     // 光量: カーテンで変わる
     this.rainbowAlpha = 0.2 + this.curtainOpen * 0.8;
-    // 太陽は窓の中だけ動ける
-    this.rig.lightX = clamp(this.rig.lightX, this.win.x + 40, this.win.x + this.win.w - 40);
-    this.rig.lightY = clamp(this.rig.lightY, this.win.y + 40, this.win.y + this.win.h - 40);
+    // おひさまのときだけ、窓の中に光源をとどめる
+    if (this.rig.sourceType === 'sun') {
+      this.rig.lightX = clamp(this.rig.lightX, this.win.x + 40, this.win.x + this.win.w - 40);
+      this.rig.lightY = clamp(this.rig.lightY, this.win.y + 40, this.win.y + this.win.h - 40);
+    }
     // スプーンを鏡として登録
-    this.rig.mirrors = [mirrorSegment({ x: this.spoon.x, y: this.spoon.y, rot: this.spoon.rot, len: this.spoon.len })];
+    this.rig.mirrors.push(mirrorSegment({ x: this.spoon.x, y: this.spoon.y, rot: this.spoon.rot, len: this.spoon.len }));
 
     if (!this.spunOnce && this.rig.glow > 0.5) {
       this.spunOnce = true;
@@ -108,6 +110,7 @@ export class MorningScene extends SceneBase {
     const f = this.flower;
     const hits = this.rig.colorsAt(f.x, f.y, 46);
     f.glow = Math.max(0, (f.glow ?? 0) - dt);
+    f.dance = Math.max(0, (f.dance ?? 0) - dt * 0.5);
     for (const ci of hits) {
       const idx = ci % f.petals.length;
       f.petals[idx] = RAINBOW[ci].hex;
@@ -147,6 +150,30 @@ export class MorningScene extends SceneBase {
         }
       }
     }
+  }
+
+  // 長押しダンス
+  objectDance(obj) {
+    if (obj.kind === 'flower') {
+      this.flower.dance = 1;
+      audio.bloom();
+      for (let i = 0; i < 8; i++) {
+        this.engine.particles.petal(this.flower.x, this.flower.y - 8, RAINBOW[(Math.random() * 7) | 0].hex);
+      }
+    } else if (obj === this.cup) {
+      this.causticGlow = 1;
+      audio.drop();
+    } else if (obj === this.spoon) {
+      this.spoon.rot += Math.PI * 2 * 0.9; // くるんと一回転
+    }
+  }
+
+  extraHints() {
+    return [
+      { x: this.flower.x, y: this.flower.y },
+      { x: this.cup.x, y: this.cup.y },
+      { x: this.win.x + this.win.w * (1 - this.curtainOpen * 0.82), y: this.win.y + this.win.h * 0.5 },
+    ];
   }
 
   // ---- 描画 ----

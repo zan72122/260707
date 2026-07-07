@@ -87,6 +87,25 @@ export class Particles {
     });
   }
 
+  // 音符がぽろん(ダンス・ハープ)
+  noteMark(x, y, hex = '#ffffff') {
+    this.spawn({
+      x, y, vx: rand(-14, 14), vy: rand(-70, -40),
+      life: rand(0.9, 1.5), maxLife: 1.5, size: rand(7, 11), hex,
+      shape: 'note', spin: rand(-1.5, 1.5), wobble: 8, wobbleSpeed: 3,
+    });
+  }
+
+  // 紙ふぶき(おまつりモード)
+  confetti(x, y, hex) {
+    this.spawn({
+      x, y, vx: rand(-140, 140), vy: rand(-220, -80),
+      life: rand(1.2, 2.2), maxLife: 2.2, size: rand(4, 8), hex,
+      shape: 'confetti', gravity: 240, drag: 0.985,
+      spin: rand(-8, 8), wobble: rand(6, 16), wobbleSpeed: rand(2, 5),
+    });
+  }
+
   // 流れ星のような光の筋
   streak(x, y, angle, hex) {
     this.spawn({
@@ -169,6 +188,33 @@ export class Particles {
           ctx.beginPath();
           ctx.arc(p.x, p.y, p.size, 0, TAU);
           ctx.fill();
+          break;
+        }
+        case 'note': {
+          ctx.save();
+          ctx.translate(p.x, p.y);
+          ctx.rotate(p.rot * 0.2);
+          ctx.fillStyle = p.hex;
+          ctx.strokeStyle = p.hex;
+          ctx.lineWidth = p.size * 0.22;
+          ctx.lineCap = 'round';
+          ctx.beginPath();
+          ctx.ellipse(0, p.size * 0.5, p.size * 0.5, p.size * 0.36, -0.4, 0, TAU);
+          ctx.fill();
+          ctx.beginPath();
+          ctx.moveTo(p.size * 0.42, p.size * 0.4);
+          ctx.lineTo(p.size * 0.42, -p.size * 0.7);
+          ctx.stroke();
+          ctx.restore();
+          break;
+        }
+        case 'confetti': {
+          ctx.save();
+          ctx.translate(p.x, p.y);
+          ctx.rotate(p.rot);
+          ctx.fillStyle = p.hex;
+          ctx.fillRect(-p.size / 2, -p.size * 0.3, p.size, p.size * 0.6);
+          ctx.restore();
           break;
         }
         case 'streak': {

@@ -7,14 +7,14 @@ import { drawAtelierBackground, drawDress, drawFan } from './dress_view.js';
 import { RAINBOW, clamp, dist, rand } from '../core/utils.js';
 import { audio } from '../core/audio.js';
 
-const DISCOVERIES = 6;
+const DISCOVERIES = 11; // シーン固有6 + 共通コンボ5
 const COLS = 9;
 const ROWS = 12;
 const STRIPE_CHANGES_NEEDED = 3;
 
 export class DressScene extends SceneBase {
   constructor(engine) {
-    super(engine, 'dress', DISCOVERIES, { sunMode: false, spread: 0.07 });
+    super(engine, 'dress', DISCOVERIES, { source: 'flash', spread: 0.07 });
     // ドレスの染色セル
     this.cells = [];
     for (let r = 0; r < ROWS; r++) {
@@ -95,8 +95,25 @@ export class DressScene extends SceneBase {
     }
   }
 
+  // 長押しダンス: 扇風機は強風、鏡はきらめく
+  objectDance(obj) {
+    if (obj.kind === 'fan') {
+      this.gust = 1.6;
+      audio.whoosh();
+    } else if (obj === this.mirror) {
+      this.engine.particles.burst(this.mirror.x, this.mirror.y, '#dff3ff', 12, 100);
+    }
+  }
+
+  extraHints() {
+    return [
+      { x: this.dress.x, y: this.dress.y },
+      { x: this.fan.x, y: this.fan.y },
+    ];
+  }
+
   sceneUpdate(dt) {
-    this.rig.mirrors = [mirrorSegment(this.mirror)];
+    this.rig.mirrors.push(mirrorSegment(this.mirror));
     this.gust = Math.max(0, this.gust - dt * 0.5);
     this._dye(dt);
     this._checkPatterns();

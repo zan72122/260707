@@ -85,8 +85,45 @@ class AudioEngine {
   // 虹の色が何かに当たったときのチャイム(色indexで音程が変わる)
   chime(colorIndex = 0) {
     const freq = PENTATONIC[colorIndex % PENTATONIC.length];
-    this._tone({ freq, dur: 0.5, vol: 0.22 });
-    this._tone({ freq: freq * 2, dur: 0.35, vol: 0.08, delay: 0.02 });
+    const detune = (Math.random() - 0.5) * 14; // 毎回すこし違う響きに
+    this._tone({ freq, dur: 0.5, vol: 0.22, detune });
+    this._tone({ freq: freq * 2, dur: 0.35, vol: 0.08, delay: 0.02, detune });
+  }
+
+  // にじのハープ: 帯を指でなでたとき色ごとに鳴る(チャイムよりやわらかい)
+  note(colorIndex = 0) {
+    const freq = PENTATONIC[colorIndex % PENTATONIC.length] * 2;
+    this._tone({ freq, dur: 0.6, vol: 0.16, type: 'triangle', attack: 0.005 });
+    this._tone({ freq: freq * 2, dur: 0.3, vol: 0.045, delay: 0.01 });
+  }
+
+  // るんるんジングル(長押しダンス)
+  jingle() {
+    [0, 3, 5, 7].forEach((n, i) => {
+      const f = PENTATONIC[n % PENTATONIC.length] * (n >= 7 ? 2 : 1);
+      this._tone({ freq: f, dur: 0.28, vol: 0.14, delay: i * 0.09, type: 'triangle' });
+    });
+  }
+
+  // ぽこっ(切り替えボタン)
+  switchTone() {
+    this._tone({ freq: 430, dur: 0.1, vol: 0.18, type: 'triangle' });
+    this._tone({ freq: 640, dur: 0.14, vol: 0.14, type: 'triangle', delay: 0.07 });
+  }
+
+  // ちりーん(鏡を置く)
+  bell() {
+    this._tone({ freq: 1318, dur: 0.7, vol: 0.12 });
+    this._tone({ freq: 1975, dur: 0.5, vol: 0.05, delay: 0.02 });
+  }
+
+  // わーい!(おまつりモード)
+  party() {
+    [0, 2, 4, 5, 7, 9].forEach((n, i) => {
+      const f = PENTATONIC[n % PENTATONIC.length] * (n >= 5 ? 2 : 1);
+      this._tone({ freq: f, dur: 0.35, vol: 0.16, delay: i * 0.08, pan: (i % 2) * 0.8 - 0.4 });
+    });
+    this._noise({ dur: 0.5, vol: 0.07, freq: 3000, q: 0.6, delay: 0.1 });
   }
 
   // キラキラ(小さな発見)
