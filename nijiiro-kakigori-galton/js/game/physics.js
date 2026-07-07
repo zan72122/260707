@@ -28,10 +28,7 @@ export class Physics {
     this.L = L;
     this.pinRows = [];
     for (let r = 0; r < L.pinRows; r++) this.pinRows.push([]);
-    L.pins.forEach((pin, i) => {
-      pin.idx = i;
-      this.pinRows[pin.row].push(pin);
-    });
+    for (const pin of L.pins) this.pinRows[pin.row].push(pin);
     this.pinGlow = new Float32Array(L.pins.length);
   }
 
@@ -244,7 +241,7 @@ export class Physics {
         }
         // 真上から当たったら左右50%で分岐(ゴルトンの核)
         const side = Math.abs(nx) < 0.2 ? (Math.random() < 0.5 ? -1 : 1) : Math.sign(nx);
-        b.vx += side * (Math.abs(vn) * PIN_SIDE_KICK + 14);
+        b.vx += side * (Math.abs(vn) * PIN_SIDE_KICK + L.ballR * 4.5);
         if (this.pinGlow[pin.idx] < 0.4) {
           this.pinGlow[pin.idx] = 1;
           hooks.onPinHit(pin, b);

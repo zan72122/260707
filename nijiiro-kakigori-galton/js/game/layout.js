@@ -47,12 +47,13 @@ export function computeLayout(w, h) {
   L.pinGapY = (L.slotTop - L.pinTop) / PIN_ROWS;
   L.pinR = clamp(L.slotW * 0.10, 2.5, 7);
   L.pins = [];
+  let idx = 0;
   for (let row = 0; row < PIN_ROWS; row++) {
     const dividerAligned = row % 2 === 1;         // 奇数段は仕切りの真上に並ぶ
     const count = dividerAligned ? N_SLOTS - 1 : N_SLOTS;
     const offset = dividerAligned ? L.slotW : L.slotW / 2;
     for (let i = 0; i < count; i++) {
-      L.pins.push({ x: L.boardX + offset + i * L.slotW, y: L.pinTop + (row + 0.5) * L.pinGapY, row });
+      L.pins.push({ x: L.boardX + offset + i * L.slotW, y: L.pinTop + (row + 0.5) * L.pinGapY, row, idx: idx++ });
     }
   }
 
@@ -73,11 +74,12 @@ export function computeLayout(w, h) {
 
   // レバー(右側の大きな赤レバー)
   const leverX = portrait ? L.boardX + L.boardW + L.sideR * 0.42 : w - L.sideR * 0.52;
+  const handleR = clamp(L.sideR * 0.30, 20, 38);
   L.lever = {
     x: leverX,
-    topY: L.tank.y + clamp(H * 0.02, 8, 18),
+    topY: Math.max(L.tank.y + clamp(H * 0.02, 8, 18), L.awningH + handleR + 8),
     botY: L.throatY + clamp(H * 0.06, 20, 46),
-    handleR: clamp((portrait ? L.sideR : L.sideR) * 0.30, 20, 38),
+    handleR,
   };
 
   // シロップボトルのボタン
@@ -98,13 +100,13 @@ export function computeLayout(w, h) {
   }
 
   // 各種ボタン
-  L.muteBtn = { x: w - 32, y: 32, r: 20 };
+  L.muteBtn = { x: portrait ? w - 32 : L.boardX + L.boardW - 26, y: 32, r: 20 };
   L.fanBtn = {
-    x: portrait ? clamp(L.boardX * 0.55, 22, 60) : L.sideL / 2,
-    y: portrait ? L.slotTop - 20 : clamp(h * 0.09, 44, 80),
+    x: portrait ? L.boardX + L.slotW * 0.85 : L.lever.x,
+    y: portrait ? (L.tankBottom + L.throatY) / 2 : L.lever.botY + handleR * 2.8,
     r: clamp(Math.min(w, h) * 0.036, 20, 30),
   };
-  L.meter = { x: 14, y: 14 };
+  L.meter = portrait ? { x: 14, y: 14 } : { x: L.boardX + 14, y: L.awningH + 10 };
 
   // マスコットの位置
   if (portrait) {

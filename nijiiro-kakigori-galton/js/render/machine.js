@@ -49,11 +49,12 @@ export function drawStall(ctx, L, t) {
   }
   ctx.fillStyle = 'rgba(160,40,40,0.25)';
   ctx.fillRect(0, 0, L.w, 3);
-  // ちょうちん
+  // ちょうちん(タンクやレバーと重ねない)
   const n = L.portrait ? 2 : 4;
   for (let i = 0; i < n; i++) {
     const x = L.w * ((i + 0.5) / n) + (i % 2 ? 30 : -30);
-    if (Math.abs(x - L.cx) < L.tank.w * 0.62) continue; // タンクと重ねない
+    if (Math.abs(x - L.cx) < L.tank.w * 0.62) continue;
+    if (Math.abs(x - L.lever.x) < L.lever.handleR * 2.2) continue;
     drawLantern(ctx, x, aw * 0.8, clamp(L.w * 0.028, 13, 22), t + i * 1.7);
   }
 }
