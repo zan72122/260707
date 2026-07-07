@@ -1,5 +1,5 @@
 // メインのプレイ画面: シロップをタンクにためて、レバーを引いてじゃらじゃらGO!
-import { TAU, clamp, rand, randi, choice, drawBubbleText } from '../core/utils.js';
+import { TAU, clamp, rand, randi, choice, drawBubbleText, drawRainbowText } from '../core/utils.js';
 import { audio } from '../core/audio.js';
 import { FxSystem } from '../core/fx.js';
 import { computeLayout } from '../game/layout.js';
@@ -478,7 +478,10 @@ export class PlayScene {
         drawBubbleText(ctx, 'あかい ればーを したに ひっぱって GO!', L.cx, L.throatY + 26, clamp(L.h * 0.028, 15, 26), '#c2385a');
       }
     }
-    if (this.phase === 'full') drawItadakimasuButton(ctx, this.itadakiBtn, this.phaseT * 1.4, t);
+    if (this.phase === 'full') {
+      drawRainbowText(ctx, 'できあがり!', L.cx, this.itadakiBtn.y - this.itadakiBtn.h * 1.3, clamp(L.boardW * 0.1, 26, 54), t * 120);
+      drawItadakimasuButton(ctx, this.itadakiBtn, this.phaseT * 1.4, t);
+    }
     drawFinishOverlay(this, ctx, t);
   }
 }
