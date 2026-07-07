@@ -27,7 +27,7 @@ export class MicroscopeScene extends Phaser.Scene {
 
     this.bg = this.add.graphics().setDepth(0);
     this.specG = this.add.graphics().setDepth(5);
-    this.vignette = this.add.graphics().setDepth(10);
+    this.surround = this.add.graphics().setDepth(10); // 視野の外を暗くする黒幕
     this.ringG = this.add.graphics().setDepth(11);
 
     this.knob = this.add.container(0, 0).setDepth(20);
@@ -139,6 +139,8 @@ export class MicroscopeScene extends Phaser.Scene {
     const L = this.L;
     const stars = this.stain.stars();
     const fb = this.stain.feedback().slice(0, 3);
+    this.dim = this.add.graphics().setDepth(38);
+    this.dim.fillStyle(0x05080d, 0.55); this.dim.fillRect(0, 0, L.w, L.h);
     this.panel = this.add.container(L.cx, L.h * 1.2).setDepth(40);
     const g = this.add.graphics();
     const pw = Math.min(L.w * 0.86, 460), ph = Math.min(L.h * 0.52, 420);
@@ -187,9 +189,12 @@ export class MicroscopeScene extends Phaser.Scene {
     const L = computeLayout(this.scale.width, this.scale.height);
     this.L = L;
     paintBackground(this.bg, L.w, L.h, 0x0a1420, 0x05080d);
+    const controlsY = L.h * 0.88;
+    const hintY = L.h * 0.8;
     this.fieldX = L.cx;
-    this.fieldY = L.portrait ? L.h * 0.4 : L.h * 0.44;
-    this.fieldR = Math.min(L.w, L.h) * (L.portrait ? 0.4 : 0.36);
+    this.fieldY = L.portrait ? L.h * 0.38 : L.h * 0.42;
+    // 視野は下のヒント/操作にかぶらないよう半径をクランプ
+    this.fieldR = Math.min(Math.min(L.w, L.h) * (L.portrait ? 0.42 : 0.38), (hintY - 30) - this.fieldY, this.fieldY - L.safeTop - 24);
 
     // 円形マスク
     if (!this.maskG) this.maskG = this.make.graphics();
@@ -199,13 +204,13 @@ export class MicroscopeScene extends Phaser.Scene {
     this.specG.setMask(this.maskG.createGeometryMask());
 
     this.drawVignette();
-    const by = L.portrait ? L.h * 0.8 : L.h * 0.82;
-    this.knob.setPosition(L.portrait ? L.w * 0.24 : L.w * 0.16, by);
-    this.zoomBtn.setPosition(L.portrait ? L.w * 0.76 : L.w * 0.84, by);
+    this.knob.setPosition(L.portrait ? L.w * 0.22 : L.w * 0.14, controlsY);
+    this.zoomBtn.setPosition(L.portrait ? L.w * 0.78 : L.w * 0.86, controlsY);
     this.drawControls();
-    this.hintText.setPosition(L.cx, L.portrait ? L.h * 0.9 : L.h * 0.94).setFontSize(Math.min(L.short * 0.055, 24));
-    this.fairy.setPosition(L.cx, by).setDepth(22);
-    this.fairy.resize(Math.min(L.short * 0.09, 50));
+    this.hintText.setPosition(L.cx, hintY).setFontSize(Math.min(L.short * 0.055, 24));
+    // しずくは左上に置き、視野に重ならないようにする
+    this.fairy.setPosition(L.portrait ? L.w * 0.16 : L.w * 0.09, L.portrait ? L.h * 0.14 : L.h * 0.2).setDepth(22);
+    this.fairy.resize(Math.min(L.short * 0.08, 44));
     if (this.panel) this.panel.setPosition(L.cx, L.cy);
     this.redrawSpec();
     if (this.state === 'focus') this.fairy.pointAt(this.knob.x, this.knob.y, 54);
@@ -225,24 +230,22 @@ export class MicroscopeScene extends Phaser.Scene {
   }
 
   drawVignette() {
-    const L = this.L;
-    const g = this.vignette; g.clear();
-    // 視野の外を暗くする(接眼レンズ風)
-    g.fillStyle(0x05080d, 1);
-    g.beginPath();
-    g.moveTo(0, 0); g.lineTo(L.w, 0); g.lineTo(L.w, L.h); g.lineTo(0, L.h); g.closePath();
-    g.arc(this.fieldX, this.fieldY, this.fieldR, 0, Math.PI * 2, true);
-    g.fillPath();
-    // 内側のソフトな影
+    // 背景がほぼ黒 + specG は円形マスクで視野内にクリップ済みなので、
+    // 接眼レンズの縁(太いリング)だけを描けばよい。穴あき塗りは WebGL で
+    // 三角形分割の破綻を起こすため使わない。
+    const g = this.surround; g.clear();
+    // 視野内側のソフトな影(接眼レンズ感)
     for (let i = 0; i < 6; i++) {
       g.lineStyle(6 - i, 0x000000, 0.12);
       g.strokeCircle(this.fieldX, this.fieldY, this.fieldR - i * 4);
     }
     const r = this.ringG; r.clear();
-    r.lineStyle(Math.max(8, this.fieldR * 0.06), 0x24405e, 1);
-    r.strokeCircle(this.fieldX, this.fieldY, this.fieldR + 6);
-    r.lineStyle(3, 0x7fe0ff, 0.6);
-    r.strokeCircle(this.fieldX, this.fieldY, this.fieldR + 2);
+    r.lineStyle(Math.max(10, this.fieldR * 0.08), 0x1a2f47, 1);
+    r.strokeCircle(this.fieldX, this.fieldY, this.fieldR + 8);
+    r.lineStyle(Math.max(4, this.fieldR * 0.03), 0x24405e, 1);
+    r.strokeCircle(this.fieldX, this.fieldY, this.fieldR + 3);
+    r.lineStyle(3, 0x7fe0ff, 0.5);
+    r.strokeCircle(this.fieldX, this.fieldY, this.fieldR + 1);
   }
 
   // ---- 標本の描画 ----

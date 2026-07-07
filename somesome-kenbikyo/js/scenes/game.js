@@ -106,9 +106,9 @@ export class GameScene extends Phaser.Scene {
     this.jarX = L.cx;
     this.jarY = workY;
     this.slideW = this.jarW * 0.42;
-    this.slideH = this.jarH * 1.5;
-    this.slideRestY = this.jarY - this.jarH * 0.15; // 液につかった位置
-    this.slideUpY = this.jarY - this.jarH * 0.9;     // 引き上げた位置
+    this.slideH = this.jarH * 1.25;
+    this.slideRestY = this.jarY - this.jarH * 0.25; // 液につかった位置(下端は容器内)
+    this.slideUpY = this.jarY - this.jarH * 1.0;     // 引き上げた位置
 
     // 上のアイコン・ヒント
     this.stepIcon.setPosition(L.cx, this.progY + Math.min(L.w * 0.09, 46));
