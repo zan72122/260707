@@ -97,9 +97,9 @@ export class Toolbar {
       if (c.ci < 0) {
         for (let i = 0; i < RAINBOW.length; i++) {
           ctx.strokeStyle = RAINBOW[i].hex;
-          ctx.lineWidth = 2.6;
+          ctx.lineWidth = Math.max(1.6, s * 0.14);
           ctx.beginPath();
-          ctx.arc(0, s * 0.5, s - i * 2.4, Math.PI * 1.1, Math.PI * 1.9);
+          ctx.arc(0, s * 0.5, Math.max(1, s * (1 - i * 0.13)), Math.PI * 1.1, Math.PI * 1.9);
           ctx.stroke();
         }
       } else {
