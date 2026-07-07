@@ -81,6 +81,26 @@ export class FxSystem {
     this.floaters.push({ x, y, text, hue, size, life: 1 });
   }
 
+  // かき氷から立ちのぼる冷気
+  mist(x, y, size = 20) {
+    this.spawn({
+      x, y, hue: 200, sat: 40, lit: 95,
+      vx: rand(-8, 8), vy: rand(-26, -12),
+      g: -6, drag: 0.995, decay: rand(0.5, 0.8),
+      size, kind: 'mist', vr: rand(-0.5, 0.5),
+    });
+  }
+
+  // 横風の流線
+  windStreak(x, y, dir, speed = 500) {
+    this.spawn({
+      x, y, hue: 200, sat: 30, lit: 92,
+      vx: dir * speed * rand(0.7, 1.2), vy: rand(-14, 14),
+      g: 0, drag: 0.99, decay: rand(1.6, 2.4),
+      size: rand(14, 34), kind: 'streak',
+    });
+  }
+
   update(dt) {
     const parts = this.parts;
     for (let i = parts.length - 1; i >= 0; i--) {
@@ -133,6 +153,24 @@ export class FxSystem {
         heartPath(ctx, 0, 0, p.size * 0.7);
         ctx.fill();
         ctx.restore();
+      } else if (p.kind === 'mist') {
+        ctx.globalAlpha = alpha * 0.28;
+        const g = ctx.createRadialGradient(p.x, p.y, 0, p.x, p.y, p.size);
+        g.addColorStop(0, 'rgba(255,255,255,0.9)');
+        g.addColorStop(1, 'rgba(255,255,255,0)');
+        ctx.fillStyle = g;
+        ctx.beginPath();
+        ctx.arc(p.x, p.y, p.size, 0, TAU);
+        ctx.fill();
+      } else if (p.kind === 'streak') {
+        ctx.globalAlpha = alpha * 0.55;
+        ctx.strokeStyle = '#ffffff';
+        ctx.lineWidth = 2.2;
+        ctx.lineCap = 'round';
+        ctx.beginPath();
+        ctx.moveTo(p.x, p.y);
+        ctx.lineTo(p.x - p.vx * 0.06, p.y - p.vy * 0.06);
+        ctx.stroke();
       } else { // confetti
         ctx.save();
         ctx.translate(p.x, p.y);
