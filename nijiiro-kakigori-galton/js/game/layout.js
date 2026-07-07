@@ -3,7 +3,7 @@
 import { clamp } from '../core/utils.js';
 
 export const N_SLOTS = 9;      // 分布を見せるスロット(ビン)の数
-export const PIN_ROWS = 10;    // ピンの森の段数(密)
+export const PIN_ROWS = 11;    // ピンの森の段数(密)
 
 export function computeLayout(w, h) {
   const portrait = h >= w;
@@ -38,18 +38,23 @@ export function computeLayout(w, h) {
   // 漏斗と喉(狭い入口)
   L.throatY = L.tankBottom + H * 0.055;
   L.slotW = L.boardW / N_SLOTS;
-  L.ballR = clamp(L.slotW * 0.135, 3.5, 10);
+  L.ballR = clamp(L.slotW * 0.115, 3.2, 9);
   L.throatHalf = L.ballR * 2.6;                   // 玉2.6個分の狭い通路
 
-  // ピンの森(密な三角格子)
+  // ピンの森(スロット幅に揃えた千鳥格子)
+  // 1段ごとに玉が半スロットずれる = 段数ぶんの二項分布(釣鐘型)が生まれる。
+  // 段間は玉が挟まらないよう玉サイズから決める
   L.pinTop = L.throatY + H * 0.030;
-  L.slotTop = L.pinTop + H * 0.295;               // 仕切りの上端
-  L.pinGapY = (L.slotTop - L.pinTop) / PIN_ROWS;
+  L.slotTop = L.pinTop + H * 0.270;               // 仕切りの上端
+  const pinRegionH = L.slotTop - L.pinTop;
+  L.pinRows = Math.round(clamp(pinRegionH / Math.max(L.ballR * 3.2, 15), 6, PIN_ROWS));
+  L.pinGapY = pinRegionH / L.pinRows;
+  L.pinGapX = L.slotW;
   L.pinR = clamp(L.slotW * 0.10, 2.5, 7);
   L.pins = [];
   let idx = 0;
-  for (let row = 0; row < PIN_ROWS; row++) {
-    const dividerAligned = row % 2 === 1;         // 奇数段は仕切りの真上に並ぶ
+  for (let row = 0; row < L.pinRows; row++) {
+    const dividerAligned = row % 2 === 1;         // 奇数段は仕切りの真上
     const count = dividerAligned ? N_SLOTS - 1 : N_SLOTS;
     const offset = dividerAligned ? L.slotW : L.slotW / 2;
     for (let i = 0; i < count; i++) {
@@ -58,18 +63,19 @@ export function computeLayout(w, h) {
   }
 
   // スロット(仕切り付きビン)と氷の床
-  L.iceY = L.slotTop + H * 0.215;
+  L.iceY = L.slotTop + H * 0.240;
   L.cupBottom = L.iceY + H * 0.055;
   L.slotX = (i) => L.boardX + i * L.slotW;
 
-  // 物理用の壁(漏斗の左右・盤面の側壁)。法線側に玉を押し出す線分
+  // 物理用の壁(漏斗の左右と盤面の側壁)。玉は喉から中央に落ち、
+  // ピンの森だけで二項分布的に広がる(=ゴルトンボードの釣鐘型)
   L.walls = [
     { x1: L.tank.x, y1: L.tankBottom, x2: L.cx - L.throatHalf, y2: L.throatY },
     { x1: L.tank.x + L.tank.w, y1: L.tankBottom, x2: L.cx + L.throatHalf, y2: L.throatY },
-    { x1: L.cx - L.throatHalf, y1: L.throatY, x2: L.boardX + L.slotW * 0.35, y2: L.pinTop + L.pinGapY },
-    { x1: L.cx + L.throatHalf, y1: L.throatY, x2: L.boardX + L.boardW - L.slotW * 0.35, y2: L.pinTop + L.pinGapY },
-    { x1: L.boardX, y1: L.pinTop, x2: L.boardX, y2: L.iceY },
-    { x1: L.boardX + L.boardW, y1: L.pinTop, x2: L.boardX + L.boardW, y2: L.iceY },
+    { x1: L.cx - L.throatHalf, y1: L.throatY, x2: L.cx - L.throatHalf * 1.15, y2: L.throatY + L.ballR * 2.2 },
+    { x1: L.cx + L.throatHalf, y1: L.throatY, x2: L.cx + L.throatHalf * 1.15, y2: L.throatY + L.ballR * 2.2 },
+    { x1: L.boardX, y1: L.throatY, x2: L.boardX, y2: L.iceY },
+    { x1: L.boardX + L.boardW, y1: L.throatY, x2: L.boardX + L.boardW, y2: L.iceY },
   ];
 
   // レバー(右側の大きな赤レバー)

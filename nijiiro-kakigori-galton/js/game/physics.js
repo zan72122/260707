@@ -94,9 +94,12 @@ export class Physics {
     const maxV = L.maxFall;
 
     // 積分
+    const pinDrag = Math.exp(-2.6 * dt);
     for (const b of balls) {
       b.vy += L.gravity * dt;
       if (this.windAx !== 0 && b.y > L.throatY && b.y < L.slotTop + L.slotW) b.vx += this.windAx * dt;
+      // ピンの森では横速度を減衰させ、1段ごとの分岐が±半スロットに収まるようにする
+      if (b.y > L.pinTop && b.y < L.slotTop) b.vx *= pinDrag;
       b.vx = clamp(b.vx, -maxV, maxV);
       b.vy = clamp(b.vy, -maxV, maxV);
       b.x += b.vx * dt;
@@ -145,8 +148,8 @@ export class Physics {
         hooks.onSettle(b, slot);
         continue;
       }
-      // 詰まり防止: ピンの森の中で止まった玉を軽く蹴る
-      if (Math.abs(b.vx) + Math.abs(b.vy) < 9 && b.y > L.pinTop && b.y < fy - b.r * 3) {
+      // 詰まり防止: 途中で止まった玉を軽く蹴る(漏斗の壁の角なども対象)
+      if (Math.abs(b.vx) + Math.abs(b.vy) < 9 && b.y > L.tankBottom && b.y < fy - b.r * 3 && this.gateRatio > 0.05) {
         b.stall += dt;
         if (b.stall > STALL_KICK_AFTER) {
           b.vx += rand(-60, 60);
@@ -239,9 +242,11 @@ export class Physics {
           b.vx -= (1 + PIN_DAMP) * vn * nx;
           b.vy -= (1 + PIN_DAMP) * vn * ny;
         }
-        // 真上から当たったら左右50%で分岐(ゴルトンの核)
+        // 真上から当たったら左右50%で分岐(ゴルトンの核)。
+        // 次の段までにちょうど半スロットずれる横速度を与える(二項分布のもと)
         const side = Math.abs(nx) < 0.2 ? (Math.random() < 0.5 ? -1 : 1) : Math.sign(nx);
-        b.vx += side * (Math.abs(vn) * PIN_SIDE_KICK + L.ballR * 4.5);
+        const fallT = Math.sqrt((2 * L.pinGapY) / L.gravity);
+        b.vx = side * (L.pinGapX * 0.66 / fallT) * (0.75 + Math.random() * 0.5);
         if (this.pinGlow[pin.idx] < 0.4) {
           this.pinGlow[pin.idx] = 1;
           hooks.onPinHit(pin, b);
