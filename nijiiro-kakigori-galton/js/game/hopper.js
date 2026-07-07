@@ -57,8 +57,10 @@ export class Hopper {
     if (this.queue.length === 0) return null;
     const rec = this.queue.shift();
     this.drained++;
-    // 沈み込みが大きくなったら描き直してリセット
-    if ((this.drained / this.perRow) * this.rowH > this.L.tank.h * 1.1) this._rebake();
+    // 空になったら描き残しを消す。沈み込みが大きくなったら描き直す
+    if (this.queue.length === 0 || (this.drained / this.perRow) * this.rowH > this.L.tank.h * 1.1) {
+      this._rebake();
+    }
     return rec;
   }
 

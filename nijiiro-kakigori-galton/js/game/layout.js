@@ -107,9 +107,10 @@ export function computeLayout(w, h) {
 
   // 各種ボタン
   L.muteBtn = { x: portrait ? w - 32 : L.boardX + L.boardW - 26, y: 32, r: 20 };
+  // うちわボタンはレバーから離す(誤タップ防止)
   L.fanBtn = {
-    x: portrait ? L.boardX + L.slotW * 0.85 : L.lever.x,
-    y: portrait ? (L.tankBottom + L.throatY) / 2 : L.lever.botY + handleR * 2.8,
+    x: L.boardX + L.slotW * 0.85,
+    y: (L.tankBottom + L.throatY) / 2,
     r: clamp(Math.min(w, h) * 0.036, 20, 30),
   };
   L.meter = portrait ? { x: 14, y: 14 } : { x: L.boardX + 14, y: L.awningH + 10 };
