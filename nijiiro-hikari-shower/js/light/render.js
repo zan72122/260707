@@ -39,10 +39,17 @@ export function drawWhiteBeam(ctx, rig, time) {
 }
 
 // にじ色の帯(rig.raysのセグメント)を描く
+// 通常合成で色をしっかり乗せ、加算合成でグローを足す2パス構成
+// (明るい背景でも白飛びせず、暗い背景では光って見える)
 export function drawRainbow(ctx, rig, time, alpha = 1) {
-  ctx.save();
-  ctx.globalCompositeOperation = 'lighter';
   const pulse = 0.88 + Math.sin(time * 3.1) * 0.12;
+  drawRainbowPass(ctx, rig, 'source-over', 0.34 * alpha * pulse);
+  drawRainbowPass(ctx, rig, 'lighter', 0.2 * alpha * pulse);
+}
+
+function drawRainbowPass(ctx, rig, composite, baseA) {
+  ctx.save();
+  ctx.globalCompositeOperation = composite;
   for (const ray of rig.rays) {
     let travelled = 0;
     for (const s of ray.segs) {
@@ -55,10 +62,9 @@ export function drawRainbow(ctx, rig, time, alpha = 1) {
       ctx.translate(s.x1, s.y1);
       ctx.rotate(a);
       const g = ctx.createLinearGradient(0, 0, segLen, 0);
-      const baseA = 0.34 * alpha * pulse;
-      g.addColorStop(0, rgba(ray.hex, baseA * 0.95));
-      g.addColorStop(0.55, rgba(ray.hex, baseA));
-      g.addColorStop(1, rgba(ray.hex, baseA * 0.55));
+      g.addColorStop(0, rgba(ray.hex, baseA * 0.6));
+      g.addColorStop(0.3, rgba(ray.hex, baseA));
+      g.addColorStop(1, rgba(ray.hex, baseA * 0.5));
       ctx.fillStyle = g;
       ctx.beginPath();
       ctx.moveTo(0, -w0 / 2);

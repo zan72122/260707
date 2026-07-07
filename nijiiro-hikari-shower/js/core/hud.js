@@ -46,6 +46,8 @@ export class Hud {
 
   // 発見演出(scene_baseから呼ばれる)
   celebrate(text, hex, x, y) {
+    // 画面がトーストだらけにならないよう、古いものから間引く
+    while (this.toasts.length >= 3) this.toasts.shift();
     this.toasts.push({ text, t: 0, hex });
     const praise = PRAISE[(Math.random() * PRAISE.length) | 0];
     this.toasts.push({ text: praise, t: -0.5, hex: '#ffd76e' });

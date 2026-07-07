@@ -103,11 +103,14 @@ export class LightRig {
 
   _computeRays() {
     this.rays = [];
-    const cx = this.prismX;
-    const cy = this.prismY;
     const base = this.exitAngle();
+    const mid = (BAND_COUNT - 1) / 2;
     for (let ci = 0; ci < BAND_COUNT; ci++) {
-      const a = base + (ci - (BAND_COUNT - 1) / 2) * this.spread;
+      const a = base + (ci - mid) * this.spread;
+      // 出口を色ごとに少し横へずらし、プリズム付近でも色が分かれて見えるようにする
+      const off = (ci - mid) * this.prismSize * 0.3;
+      const cx = this.prismX + Math.cos(a + Math.PI / 2) * off;
+      const cy = this.prismY + Math.sin(a + Math.PI / 2) * off;
       const segs = this._traceRay(cx, cy, Math.cos(a), Math.sin(a));
       this.rays.push({ ci, hex: RAINBOW[ci].hex, segs });
     }
@@ -180,7 +183,7 @@ export class LightRig {
 
   // 距離に応じて帯が太くなる
   bandHalfWidth(distAlong) {
-    return 10 + distAlong * 0.028;
+    return 9 + distAlong * 0.018;
   }
 
   // 白い光がプリズムに届いているか(遮蔽は現状なし=常にtrue)
