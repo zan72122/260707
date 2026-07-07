@@ -72,7 +72,7 @@ export class Ball {
     this.bounces = 0;
     this.lastHitBy = byWho;
     this._landing = to.clone();
-    this.marker.position.set(to.x, 0.03, to.z);
+    this.marker.position.set(to.x, 0.06, to.z);
   }
 
   stop() { this.active = false; this.marker.visible = false; }
@@ -114,7 +114,7 @@ export class Ball {
       this.fx.trail(this.pos, this.rainbow);
 
     this.shadowBlob.visible = this.pos.y > r + 0.02;
-    this.shadowBlob.position.set(this.pos.x, 0.02, this.pos.z);
+    this.shadowBlob.position.set(this.pos.x, 0.05, this.pos.z);
     const sh = Math.max(0.4, 1.15 - this.pos.y * 0.08) * this.scale;
     this.shadowBlob.scale.setScalar(sh);
 

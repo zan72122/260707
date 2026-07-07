@@ -25,7 +25,7 @@ export class Engine {
     this.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
 
     this.scene = new THREE.Scene();
-    this.camera = new THREE.PerspectiveCamera(55, 1, 0.1, 320);
+    this.camera = new THREE.PerspectiveCamera(55, 1, 0.5, 320);
 
     this.composer = new EffectComposer(this.renderer);
     this.renderPass = new RenderPass(this.scene, this.camera);

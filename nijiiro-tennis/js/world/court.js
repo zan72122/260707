@@ -37,7 +37,7 @@ function lineMesh(w, l, x, z) {
     new THREE.PlaneGeometry(w, l),
     new THREE.MeshLambertMaterial({ color: 0xffffff }));
   m.rotation.x = -Math.PI / 2;
-  m.position.set(x, 0.015, z);
+  m.position.set(x, 0.03, z);
   m.receiveShadow = true;
   return m;
 }
@@ -60,19 +60,27 @@ export function buildCourt(scene) {
     new THREE.PlaneGeometry(halfW * 2 + 3, halfL * 2 + 4),
     new THREE.MeshLambertMaterial({ map: grassTexture() }));
   court.rotation.x = -Math.PI / 2;
-  court.position.y = 0.001;
+  court.position.y = 0.012;
   court.receiveShadow = true;
   g.add(court);
 
-  // ピンクのふち取り(好きな色対応)
-  const rim = new THREE.Mesh(
-    new THREE.RingGeometry(0, 1, 4),
-    new THREE.MeshLambertMaterial({ color: 0xff8fc8 }));
-  rim.geometry = new THREE.PlaneGeometry(halfW * 2 + 5.2, halfL * 2 + 6.2);
-  rim.rotation.x = -Math.PI / 2;
-  rim.position.y = -0.008;
-  rim.receiveShadow = true;
-  g.add(rim);
+  // ピンクのふち取り(コートと重ならない4本の帯でZファイティング回避)
+  const rimMat = new THREE.MeshLambertMaterial({ color: 0xff8fc8 });
+  const courtW = halfW * 2 + 3, courtL = halfL * 2 + 4;
+  const RIM = 1.1;
+  const rimStrips = [
+    [courtW + RIM * 2, RIM, 0, -(courtL / 2 + RIM / 2)],
+    [courtW + RIM * 2, RIM, 0, courtL / 2 + RIM / 2],
+    [RIM, courtL, -(courtW / 2 + RIM / 2), 0],
+    [RIM, courtL, courtW / 2 + RIM / 2, 0],
+  ];
+  for (const [w, l, x, z] of rimStrips) {
+    const strip = new THREE.Mesh(new THREE.PlaneGeometry(w, l), rimMat);
+    strip.rotation.x = -Math.PI / 2;
+    strip.position.set(x, 0.001, z);
+    strip.receiveShadow = true;
+    g.add(strip);
+  }
 
   // ホワイトライン
   const LW = 0.14;

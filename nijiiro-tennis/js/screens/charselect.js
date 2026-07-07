@@ -24,7 +24,7 @@ export class CharSelect {
       new THREE.CircleGeometry(1.15, 24),
       new THREE.MeshBasicMaterial({ color: 0xff8fc8, transparent: true, opacity: 0.55 }));
     this._spotlight.rotation.x = -Math.PI / 2;
-    this._spotlight.position.y = 0.02;
+    this._spotlight.position.y = 0.05;
     this._spotlight.visible = false;
     ctx.scene.add(this._spotlight);
     hud.tapHint(true);
