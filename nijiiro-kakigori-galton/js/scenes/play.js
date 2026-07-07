@@ -1,192 +1,308 @@
-// メインのプレイ画面: 粒を落として、かき氷ににじいろの山を作る
-import { TAU, clamp, rand, randi, choice, drawBubbleText, drawRainbowText, easeOutBack, roundRect } from '../core/utils.js';
+// メインのプレイ画面: シロップをタンクにためて、レバーを引いてじゃらじゃらGO!
+import { TAU, clamp, rand, randi, choice, drawBubbleText, drawRainbowText } from '../core/utils.js';
 import { audio } from '../core/audio.js';
 import { FxSystem } from '../core/fx.js';
 import { computeLayout } from '../game/layout.js';
-import { Board } from '../game/board.js';
-import { Pile } from '../game/pile.js';
-import { SYRUPS, syrupColor, rollSpecial, CHEERS } from '../game/palette.js';
+import { Physics } from '../game/physics.js';
+import { Hopper } from '../game/hopper.js';
+import { Slots } from '../game/slots.js';
+import { SYRUPS, syrupColor, rollSpecial, CHEERS, GOLD_EVERY } from '../game/palette.js';
 import { Background } from '../render/background.js';
-import { drawIceDome, drawGlassBowl, drawTable, drawFaucetCloud } from '../render/bowl.js';
+import { drawTable, drawStall, drawTankBack, drawTankFront, drawPins, drawCup, drawDividers, drawLever } from '../render/machine.js';
+import { drawBallFast, drawGiantBerry } from '../render/grain.js';
 import { Mascot } from '../render/mascot.js';
-import { drawSyrupButtons, drawMeter, drawIconButton, drawItadakimasuButton, hitCircle, hitRect } from '../render/ui.js';
+import { drawSyrupButtons, drawMeter, drawIconButton, drawItadakimasuButton, drawArrowHint, hitCircle, hitRect } from '../render/ui.js';
+import { updateEat, drawFinishOverlay, drawSpoon } from './finish.js';
 
-const POUR_INTERVAL = 0.10;      // 押している間の粒の放出間隔(秒)
-const RAINBOW_EVERY = 55;        // 何粒ごとにレインボータイムが来るか
-const RAINBOW_DURATION = 2.4;
-const EAT_INTERVAL = 0.55;
-const FAUCET_SPEED = 9;          // 雲が指を追いかける速さ
+const POUR_RATE = 44;           // 注ぎの個数/秒
+const MIN_GO = 40;              // GOできる最小の玉数
+const MAX_FLOW_RATE = 62;       // レバー全開時の放出個数/秒
+const MAX_REMOVED_PINS = 6;     // ピンいたずらで外せる本数
+const GUST_TIME = 1.4;          // うちわの風の長さ(秒)
+const GIANT_CHANCE_PER_SEC = 0.09;
 
 export class PlayScene {
   constructor() {
     this.bg = new Background();
-    this.board = new Board();
-    this.pile = new Pile();
+    this.physics = new Physics();
+    this.hopper = new Hopper();
+    this.slots = new Slots();
     this.fx = new FxSystem();
     this.mascot = new Mascot();
     this.L = null;
-    this.phase = 'play'; // play | full | itadaki | eat | end
-    this.phaseT = 0;
-    this.selected = 0;
-    this.faucetX = 0;
-    this.faucetTarget = 0;
-    this.pouring = false;
-    this.pourT = 0;
-    this.grainSeed = 0;
-    this.grainCount = 0;
-    this.sinceRainbow = 0;
-    this.rainbowT = 0;
-    this.muted = false;
-    this.hintT = 8;
-    this.eatT = 0;
-    this.spoonAngle = 0;
     this.engine = null;
 
-    this.board.onLand = (d) => this._onLand(d);
-    this.board.onPinHit = (pin) => {
-      this.fx.sparkle(pin.x, pin.y, (pin.row * 51 + this.grainSeed * 20) % 360, 3, 55);
+    this.phase = 'make'; // make | full | itadaki | eat | end
+    this.phaseT = 0;
+    this.selected = 0;
+    this.pourPtr = null;
+    this.pourAcc = 0;
+    this.pourIndex = 0;
+    this.goldCountdown = GOLD_EVERY;
+    this.leverPtr = null;
+    this.leverRatio = 0;
+    this.gachaned = false;
+    this.rumbled = false;
+    this.flowAcc = 0;
+    this.flowStarted = false;
+    this.settledSinceRidge = 0;
+    this.gustT = 0;
+    this.gustDir = 1;
+    this.shakeT = 0;
+    this.eatT = 0;
+    this.spoonAngle = 0;
+    this.fpsEma = 60;
+    this.target = 300;
+
+    this.hooks = {
+      floorY: (slot) => this.slots.floorY(slot),
+      onPinHit: (pin, b) => {
+        audio.pinDing(pin.row);
+        if (Math.random() < 0.25) this.fx.sparkle(pin.x, pin.y, b.hue, 2, 45);
+      },
+      onSettle: (b, slot) => this._onSettle(b, slot),
     };
+    this.slots.onRidgeSlot = (i, h01) => {
+      audio.ridgeBell(i, h01);
+      const x = this.L.slotX(i) + this.L.slotW / 2;
+      this.fx.sparkle(x, this.slots.floorY(i) - 8, randi(0, 360), 6, 90);
+    };
+    this.slots.onRidgeDone = () => this._onRidgeDone();
   }
 
-  onEnter(engine) {
-    this.engine = engine;
-  }
+  onEnter(engine) { this.engine = engine; }
 
   onResize(w, h) {
     const L = computeLayout(w, h);
     this.L = L;
     this.bg.setSize(w, h);
-    this.board.setLayout(L);
-    this.pile.setLayout(L, this.engine ? this.engine.dpr : 1);
-    this.faucetX = this.faucetX || w / 2;
-    this.faucetTarget = this.faucetTarget || w / 2;
-    this.faucetX = clamp(this.faucetX, L.boardX + 30, L.boardX + L.boardW - 30);
-    this.faucetTarget = clamp(this.faucetTarget, L.boardX + 30, L.boardX + L.boardW - 30);
-    if (L.portrait) {
-      this.mascot.setPlace(clamp(w * 0.1, 34, 90), L.bowlBottom - h * 0.045, clamp(h * 0.052, 30, 52));
-    } else {
-      this.mascot.setPlace(w - L.sideW / 2, L.bowlBottom - h * 0.11, clamp(h * 0.09, 34, 60));
+    // 飛んでいる玉はいったんタンクの先頭へ戻す(レイアウト替えで迷子にしない)
+    const flying = this.physics.balls.splice(0).map((b) => ({ hue: b.hue, kind: b.kind, golden: b.golden }));
+    this.physics.giant = null;
+    this.physics.setLayout(L);
+    this.hopper.setLayout(L, this.engine ? this.engine.dpr : 1);
+    if (flying.length) {
+      this.hopper.queue.unshift(...flying.reverse());
+      this.hopper._rebake();
     }
+    this.slots.setLayout(L, this.engine ? this.engine.dpr : 1);
+    this.target = this.slots.targetCount();
+    this.mascot.setPlace(L.mascot.x, L.mascot.y, L.mascot.s);
+    const btnY = L.pinTop + (L.slotTop - L.pinTop) * 0.42;
     this.itadakiBtn = {
-      x: w / 2,
-      y: L.pinTop + (L.pinBottom - L.pinTop) * 0.45,
-      w: clamp(Math.min(w * 0.72, 430), 240, 430),
-      h: clamp(h * 0.1, 64, 92),
+      x: L.cx, y: btnY,
+      w: clamp(Math.min(L.boardW * 0.9, 420), 220, 420),
+      h: clamp(h * 0.095, 58, 88),
     };
-    this.replayBtn = { ...this.itadakiBtn, y: this.itadakiBtn.y + this.itadakiBtn.h * 1.6 };
+    this.replayBtn = { ...this.itadakiBtn, y: btnY + this.itadakiBtn.h * 1.55 };
   }
 
   // --- 入力 ---
 
-  onDown(x, y) {
+  onDown(x, y, id) {
     audio.unlock();
-    // ミュートボタン
-    if (hitCircle(x, y, this.L.muteBtn)) {
+    const L = this.L;
+    if (hitCircle(x, y, L.muteBtn)) {
       this.muted = !this.muted;
       audio.setMuted(this.muted);
       audio.tap();
       return;
     }
-    // シロップボタン
     for (let i = 0; i < SYRUPS.length; i++) {
-      if (hitCircle(x, y, this.L.buttons[i])) {
+      if (hitCircle(x, y, L.buttons[i])) {
         this.selected = i;
         audio.tap();
-        this.fx.sparkle(this.L.buttons[i].x, this.L.buttons[i].y, SYRUPS[i].hue < 0 ? randi(0, 360) : SYRUPS[i].hue, 8, 90);
+        this.fx.sparkle(L.buttons[i].x, L.buttons[i].y, SYRUPS[i].hue < 0 ? randi(0, 360) : SYRUPS[i].hue, 8, 90);
         return;
       }
     }
-    if (this.phase === 'full' && hitRect(x, y, this.itadakiBtn)) {
-      this._startItadaki();
+    if (hitCircle(x, y, L.fanBtn)) {
+      this.gustDir = -this.gustDir;
+      this.gustT = GUST_TIME;
+      audio.whoosh();
+      this.fx.floatText(L.cx, L.pinTop + 24, 'びゅ~!', 200, clamp(L.h * 0.032, 20, 30));
       return;
     }
-    if (this.phase === 'end' && hitRect(x, y, this.replayBtn)) {
-      this._reset();
+    if (this.phase === 'full' && hitRect(x, y, this.itadakiBtn)) { this._startItadaki(); return; }
+    if (this.phase === 'end' && hitRect(x, y, this.replayBtn)) { this._reset(); return; }
+    if (this.phase !== 'make') return;
+
+    // レバーをつかむ(レールのどこを触ってもOKにして4歳児でも失敗しない)
+    const lv = L.lever;
+    if (Math.abs(x - lv.x) < lv.handleR * 2.4 && y > lv.topY - lv.handleR * 2 && y < lv.botY + lv.handleR * 2.6) {
+      this.leverPtr = id;
+      this.leverDown = { y, t: performance.now(), moved: 0 };
+      this._setLever(y);
       return;
     }
-    if (this.phase === 'play') {
-      this.pouring = true;
-      this.faucetTarget = clamp(x, this.L.boardX + 30, this.L.boardX + this.L.boardW - 30);
-      this.hintT = Math.min(this.hintT, 1);
+    // 巨大玉をタップして割る
+    const g = this.physics.giant;
+    if (g && (x - g.x) ** 2 + (y - g.y) ** 2 < (g.r + 26) ** 2) {
+      this._burstGiant();
+      return;
+    }
+    // ピンいたずら(ゲート閉+玉なしの時に、ピンを正確にタップした時だけ)
+    if (this.leverRatio < 0.05 && this.physics.balls.length === 0 &&
+        y > L.pinTop - 10 && y < L.slotTop && this._togglePin(x, y)) {
+      return;
+    }
+    // それ以外の上半分はどこを長押ししても注げる(4歳児でも迷わない)
+    if (y < L.iceY) {
+      this.pourPtr = id;
       audio.pour();
     }
   }
 
-  onMove(x, y) {
-    if (this.pouring) {
-      this.faucetTarget = clamp(x, this.L.boardX + 30, this.L.boardX + this.L.boardW - 30);
+  onMove(x, y, id) {
+    if (id === this.leverPtr) {
+      if (this.leverDown) this.leverDown.moved = Math.max(this.leverDown.moved, Math.abs(y - this.leverDown.y));
+      this._setLever(y);
     }
   }
 
-  onUp() {
-    this.pouring = false;
+  onUp(x, y, id) {
+    if (id === this.leverPtr) {
+      // ちょんとタップしただけなら全開にしてあげる(ドラッグが難しい子向け)
+      if (this.leverDown && this.leverDown.moved < 12 && performance.now() - this.leverDown.t < 350) {
+        this._setLever(this.L.lever.botY);
+      }
+      this.leverPtr = null;
+      this.leverDown = null;
+    }
+    if (id === this.pourPtr) this.pourPtr = null;
   }
 
-  // --- 粒の放出と着地 ---
+  _setLever(y) {
+    const lv = this.L.lever;
+    let r = clamp((y - lv.topY) / (lv.botY - lv.topY), 0, 1);
+    if (r > 0.9) r = 1;
+    const prev = this.leverRatio;
+    this.leverRatio = r;
+    if (r >= 0.98 && !this.gachaned) {
+      this.gachaned = true;
+      audio.gachan();
+      this.shakeT = 0.25;
+    }
+    if (r < 0.5) this.gachaned = false;
+    if (prev < 0.06 && r >= 0.06 && this.hopper.count() > 0 && !this.rumbled) {
+      this.rumbled = true;
+      audio.rumble();
+      this.shakeT = Math.max(this.shakeT, 0.18);
+    }
+  }
 
-  _release(xOverride = null, forceRainbow = false) {
-    this.grainSeed++;
+  _togglePin(x, y) {
+    const L = this.L;
+    let best = null, bestD = (L.pinR + 9) ** 2;
+    for (const pin of L.pins) {
+      const d = (x - pin.x) ** 2 + (y - pin.y) ** 2;
+      if (d < bestD) { bestD = d; best = pin; }
+    }
+    if (!best) return false;
+    const removed = this.physics.removedPins;
+    if (removed.has(best.idx)) {
+      removed.delete(best.idx);
+      audio.poko();
+      this.fx.sparkle(best.x, best.y, 200, 5, 60);
+    } else if (removed.size < MAX_REMOVED_PINS) {
+      removed.add(best.idx);
+      audio.puni();
+      this.fx.splash(best.x, best.y, 200, 6);
+      this.fx.floatText(best.x, best.y - 20, 'ぷにっ', 200, 20);
+    } else {
+      this.fx.floatText(best.x, best.y - 20, 'これいじょう とれないよ', 340, 18);
+    }
+    return true;
+  }
+
+  // --- 玉の流れ ---
+
+  _pourOne() {
     const syrup = SYRUPS[this.selected];
-    const hue = forceRainbow ? randi(0, 360) : syrupColor(syrup, this.grainSeed);
     const special = rollSpecial();
-    this.board.release(xOverride ?? this.faucetX, hue, special);
+    let golden = false;
+    if (--this.goldCountdown <= 0) {
+      golden = true;
+      this.goldCountdown = GOLD_EVERY + randi(-15, 15);
+    }
+    const rec = { hue: syrupColor(syrup, this.pourIndex++), kind: special ? special.kind : null, golden };
+    if (this.hopper.pour(rec) && this.pourIndex % 9 === 0) audio.pour();
   }
 
-  _onLand(d) {
-    const pos = this.pile.addGrain(d.x, d.hue, d.special ? d.special.kind : null, d.special ? d.special.size : 1);
-    this.fx.splash(pos.x, pos.y, d.hue, d.special ? 10 : 5);
-    audio.landPop(d.hue);
-    this.grainCount++;
-    this.sinceRainbow++;
-
-    if (d.special) {
-      this.fx.floatText(pos.x, pos.y - 26, d.special.msg, (d.hue + 40) % 360, clamp(this.L.h * 0.032, 20, 30));
-      this.fx.confettiBurst(pos.x, pos.y, 10, 150);
+  _onSettle(b, slot) {
+    const rec = { hue: b.hue, kind: b.kind, golden: b.golden };
+    const p = this.slots.add(slot, rec);
+    audio.xylo(slot);
+    this.settledSinceRidge++;
+    if (Math.random() < 0.22) this.fx.splash(p.x, p.y - 4, b.hue, 3);
+    if (b.golden) {
+      this.slots.flashSlot(slot);
+      audio.goldChime();
+      this.fx.confettiBurst(p.x, p.y, 10, 170);
+      this.fx.floatText(p.x, p.y - 26, 'きんの たま!', 48, clamp(this.L.h * 0.03, 18, 28));
       this.mascot.setMood('cheer', 1.2);
-    } else if (this.grainCount % 23 === 0) {
-      this.fx.floatText(pos.x, pos.y - 24, choice(CHEERS), d.hue, clamp(this.L.h * 0.03, 18, 28));
+    } else if (this.slots.total() % 70 === 0) {
+      this.fx.floatText(p.x, p.y - 22, choice(CHEERS), b.hue, clamp(this.L.h * 0.028, 16, 26));
       this.mascot.setMood('cheer', 1.0);
     }
+  }
 
-    if (this.sinceRainbow >= RAINBOW_EVERY && this.rainbowT <= 0 && this.phase === 'play') {
-      this.sinceRainbow = 0;
-      this.rainbowT = RAINBOW_DURATION;
-      audio.rainbowFanfare();
-      this.fx.floatText(this.L.w / 2, this.L.pinTop + 30, 'レインボータイム!', randi(0, 360), clamp(this.L.h * 0.045, 26, 40));
-      this.mascot.setMood('cheer', RAINBOW_DURATION);
+  _burstGiant() {
+    const g = this.physics.burstGiant();
+    if (!g) return;
+    audio.bigPop();
+    this.shakeT = 0.3;
+    this.fx.confettiBurst(g.x, g.y, 26, 260);
+    this.fx.floatText(g.x, g.y - 30, 'ぱーん!', 350, clamp(this.L.h * 0.04, 22, 36));
+    for (let i = 0; i < 12; i++) {
+      const a = rand(0, TAU);
+      this.physics.spawn(
+        { hue: 350 + randi(-14, 14), kind: null, golden: false },
+        g.x + Math.cos(a) * g.r * 0.4, g.y + Math.sin(a) * g.r * 0.4,
+        Math.cos(a) * rand(60, 220), Math.sin(a) * rand(60, 220) - 60,
+      );
     }
+  }
 
-    if (this.phase === 'play' && this.pile.fillRatio() >= 1) this._onFull();
+  _onRidgeDone() {
+    this.fx.floatText(this.L.cx, this.L.slotTop - 30, 'おやまの かたち!', randi(0, 360), clamp(this.L.h * 0.042, 24, 40));
+    this.mascot.setMood('cheer', 2);
+    if (this.slots.total() >= this.target) {
+      this._onFull();
+    } else if (this.hopper.count() < MIN_GO) {
+      this.fx.floatText(this.L.cx, this.L.slotTop + 30, 'もっと そそいでみよう!', 200, clamp(this.L.h * 0.03, 18, 28));
+    }
   }
 
   _onFull() {
     this.phase = 'full';
     this.phaseT = 0;
-    this.pouring = false;
+    this.leverRatio = 0;
     audio.fullChime();
     this.mascot.setMood('cheer', 3);
-    this.fx.confettiBurst(this.L.w / 2, this.L.iceTop, 50, 380);
-    this.fx.floatText(this.L.w / 2, this.L.iceTop - 40, 'できあがり!', 330, clamp(this.L.h * 0.05, 30, 46));
+    this.fx.confettiBurst(this.L.cx, this.L.slotTop, 50, 380);
+    this.fx.floatText(this.L.cx, this.L.slotTop - 60, 'できあがり!', 330, clamp(this.L.h * 0.05, 30, 46));
   }
 
   _startItadaki() {
     this.phase = 'itadaki';
     this.phaseT = 0;
     audio.itadakimasu();
-    this.fx.confettiBurst(this.L.w / 2, this.L.h * 0.4, 40, 320);
+    this.fx.confettiBurst(this.L.cx, this.L.h * 0.4, 40, 320);
   }
 
   _reset() {
     audio.tap();
-    this.pile.reset();
-    this.board.drops.length = 0;
+    this.slots.reset();
+    this.hopper.reset();
+    this.physics.reset();
     this.fx.clear();
-    this.grainCount = 0;
-    this.sinceRainbow = 0;
-    this.rainbowT = 0;
-    this.phase = 'play';
+    this.phase = 'make';
     this.phaseT = 0;
-    this.hintT = 5;
+    this.pourIndex = 0;
+    this.leverRatio = 0;
+    this.flowStarted = false;
+    this.settledSinceRidge = 0;
     this.mascot.setMood('idle', 0.1);
   }
 
@@ -197,32 +313,80 @@ export class PlayScene {
     this.bg.update(dt);
     this.fx.update(dt);
     this.mascot.update(dt);
-    this.hintT -= dt;
+    this.slots.update(dt);
+    this.shakeT = Math.max(0, this.shakeT - dt);
 
-    // 雲が指を追いかける
-    this.faucetX += (this.faucetTarget - this.faucetX) * Math.min(1, FAUCET_SPEED * dt);
+    // 負荷に応じて玉の上限を自動調整
+    this.fpsEma += (1 / Math.max(dt, 1e-4) - this.fpsEma) * 0.02;
+    this.physics.activeCap = this.fpsEma < 32 ? 110 : this.fpsEma < 45 ? 170 : 240;
 
-    if (this.phase === 'play') {
-      if (this.pouring) {
-        this.pourT -= dt;
-        while (this.pourT <= 0) {
-          this.pourT += POUR_INTERVAL;
-          this._release();
+    if (this.phase === 'make') {
+      // 注ぐ
+      if (this.pourPtr !== null && !this.hopper.isFull()) {
+        this.pourAcc += POUR_RATE * dt;
+        while (this.pourAcc >= 1) { this.pourAcc -= 1; this._pourOne(); }
+      }
+      // レバーとゲート
+      this.physics.gateRatio = this.leverRatio;
+      // 放出(レバーの深さで速度が変わる)
+      if (this.leverRatio > 0.06 && this.hopper.count() > 0) {
+        this.flowAcc += this.leverRatio * MAX_FLOW_RATE * dt;
+        while (this.flowAcc >= 1 && this.physics.balls.length < this.physics.activeCap) {
+          this.flowAcc -= 1;
+          const rec = this.hopper.dequeue();
+          if (!rec) break;
+          this.physics.spawn(rec);
+          this.flowStarted = true;
         }
       } else {
-        this.pourT = 0;
+        this.flowAcc = 0;
+        this.rumbled = this.leverRatio >= 0.06 && this.rumbled;
       }
-      // レインボータイム: 空から自動で虹の粒が降る
-      if (this.rainbowT > 0) {
-        this.rainbowT -= dt;
-        if (Math.random() < dt * 22) {
-          this._release(rand(this.L.boardX + 30, this.L.boardX + this.L.boardW - 30), true);
-        }
-        if (Math.random() < dt * 6) this.fx.confettiRain(this.L.w, 2);
+      // 巨大いちご玉の乱入
+      if (this.leverRatio > 0.3 && !this.physics.giant && this.hopper.count() > 50 &&
+          this.physics.balls.length > 20 && Math.random() < dt * GIANT_CHANCE_PER_SEC) {
+        this.physics.spawnGiant();
+        audio.goron();
+        this.fx.floatText(this.L.cx, this.L.throatY - 20, 'おおきい いちご!? たっちして わってね!', 350, clamp(this.L.h * 0.028, 16, 26));
       }
+      // 巨大玉が長く放置されたら自動で割れる(進行が止まらないように)
+      if (this.physics.giant && this.physics.giant.restT > 10) this._burstGiant();
+      // レバーの自動復帰(流し終わったら)
+      if (this.leverPtr === null && this.leverRatio > 0 && this.hopper.count() === 0 && this.physics.balls.length === 0 && !this.physics.giant) {
+        this.leverRatio = Math.max(0, this.leverRatio - dt * 2.2);
+        if (this.leverRatio === 0) { audio.poko(); this.rumbled = false; }
+      }
+      // なぞり光の見せ場(流れ終わった直後)
+      if (this.flowStarted && !this.slots.ridgeActive && this.physics.balls.length === 0 && !this.physics.giant &&
+          (this.hopper.count() === 0 || this.leverRatio < 0.06) && this.settledSinceRidge >= 18) {
+        this.flowStarted = false;
+        this.settledSinceRidge = 0;
+        this.slots.startRidge();
+      }
+    } else {
+      this.physics.gateRatio = 0;
     }
 
-    this.board.update(dt, (x) => this.pile.surfaceAt(x));
+    // うちわの横風
+    if (this.gustT > 0) {
+      this.gustT -= dt;
+      const k = Math.sin(Math.PI * clamp(1 - this.gustT / GUST_TIME, 0, 1));
+      this.physics.windAx = this.gustDir * 620 * k;
+      if (Math.random() < dt * 30) {
+        const x = this.gustDir > 0 ? this.L.boardX + 6 : this.L.boardX + this.L.boardW - 6;
+        this.fx.windStreak(x, rand(this.L.throatY, this.L.slotTop), this.gustDir);
+      }
+    } else {
+      this.physics.windAx = 0;
+    }
+
+    this.physics.update(dt, this.hooks);
+    audio.setJara(clamp(this.physics.movingCount / 80, 0, 1));
+
+    // 冷気の演出
+    if (Math.random() < dt * 3) {
+      this.fx.mist(rand(this.L.boardX, this.L.boardX + this.L.boardW), this.L.iceY + 4, rand(12, 26));
+    }
 
     if (this.phase === 'itadaki' && this.phaseT > 2.3) {
       this.phase = 'eat';
@@ -230,32 +394,10 @@ export class PlayScene {
       this.eatT = 0;
       this.mascot.setMood('eat', 999);
     }
-
-    if (this.phase === 'eat') {
-      this.eatT -= dt;
-      this.spoonAngle = Math.sin(this.phaseT * (Math.PI * 2 / EAT_INTERVAL) * 0.5) * 0.35;
-      if (this.eatT <= 0) {
-        this.eatT = EAT_INTERVAL;
-        const bite = Math.max(10, Math.ceil(this.pile.grains.length / 9));
-        const removed = this.pile.eatBite(bite);
-        audio.scoop();
-        audio.munch();
-        if (removed) {
-          for (let i = 0; i < Math.min(removed.length, 5); i++) {
-            const g = removed[i];
-            this.fx.splash(g.x, g.y, g.hue, 4);
-          }
-        }
-        if (this.pile.grains.length === 0) {
-          this.phase = 'end';
-          this.phaseT = 0;
-          audio.fullChime();
-          this.mascot.setMood('yum', 4);
-          this.fx.confettiBurst(this.L.w / 2, this.L.h * 0.4, 60, 400);
-        }
-      }
+    if (this.phase === 'eat' && updateEat(this, dt)) {
+      this.phase = 'end';
+      this.phaseT = 0;
     }
-
     if (this.phase === 'end' && Math.random() < dt * 3) this.fx.confettiRain(this.L.w, 2);
   }
 
@@ -263,114 +405,96 @@ export class PlayScene {
 
   draw(ctx, t) {
     const L = this.L;
+    ctx.save();
+    if (this.shakeT > 0) {
+      const s = this.shakeT * 14;
+      ctx.translate(rand(-s, s), rand(-s, s));
+    }
     this.bg.draw(ctx, t);
     drawTable(ctx, L);
-    drawGlassBowl(ctx, L, t);
-    drawIceDome(ctx, L, (u) => this.pile.groundAt(u), t);
-    this.pile.draw(ctx);
-    this.board.drawPins(ctx, t);
-
-    // シロップの雲(食べ始めたら退場)
-    if (this.phase === 'play' || this.phase === 'full') {
-      const syrup = SYRUPS[this.selected];
-      drawFaucetCloud(ctx, L, this.faucetX, syrup.hue, this.pouring, t);
+    drawStall(ctx, L, t);
+    drawCup(ctx, L, t);
+    this.slots.draw(ctx, t);
+    drawDividers(ctx, L);
+    drawTankBack(ctx, L);
+    this.hopper.draw(ctx, t, this.leverRatio > 0.06 && this.hopper.count() > 0);
+    this._drawPourStream(ctx, t);
+    drawTankFront(ctx, L, this.phase === 'make' ? this.leverRatio : 0, t);
+    drawPins(ctx, L, this.physics.pinGlow, this.physics.removedPins, t);
+    if (this.physics.giant) {
+      const g = this.physics.giant;
+      drawGiantBerry(ctx, g.x, g.y, g.r, g.wob, t);
     }
-
-    this.board.drawDrops(ctx, t);
+    for (const b of this.physics.balls) {
+      drawBallFast(ctx, b.x, b.y, b.r, b.hue, b.golden ? 'gold' : b.kind, b.x * 0.1, t);
+    }
+    drawLever(ctx, L, this.phase === 'make' ? this.leverRatio : 0, this.phase === 'make' && this.hopper.count() >= MIN_GO, t);
     this.mascot.draw(ctx, t);
-
-    // 食べる演出のスプーン
-    if (this.phase === 'eat') this._drawSpoon(ctx, t);
-
+    if (this.phase === 'eat') drawSpoon(this, ctx, t);
     this.fx.draw(ctx, t);
+    this._drawUI(ctx, t);
+    ctx.restore();
+  }
 
-    // --- UI ---
-    drawSyrupButtons(ctx, L, this.selected, t);
-    drawMeter(ctx, L, this.pile.fillRatio(), t);
-    drawIconButton(ctx, L.muteBtn, this.muted ? '🔇' : '🔊', t);
-
-    if (this.phase === 'play' && this.hintT > 0 && this.grainCount === 0) {
-      ctx.globalAlpha = Math.min(1, this.hintT);
-      const hy = L.pinTop + (L.pinBottom - L.pinTop) * 0.4;
-      drawBubbleText(ctx, 'ゆびで タッチして', L.w / 2, hy, clamp(L.h * 0.036, 20, 32), '#4a7a9b');
-      drawBubbleText(ctx, 'つぶを おとしてね!', L.w / 2, hy + clamp(L.h * 0.05, 28, 44), clamp(L.h * 0.036, 20, 32), '#4a7a9b');
-      ctx.globalAlpha = 1;
+  _drawPourStream(ctx, t) {
+    if (this.pourPtr === null || this.phase !== 'make' || this.hopper.isFull()) return;
+    const L = this.L;
+    const syrup = SYRUPS[this.selected];
+    const x0 = L.cx;
+    const y0 = L.tank.y - 16;
+    const y1 = Math.min(this.hopper.heapTopY(), L.tankBottom - 4);
+    // 注ぎ中のボトル
+    ctx.save();
+    ctx.translate(x0 + L.tank.w * 0.18, y0 - 8);
+    ctx.rotate(2.4 + Math.sin(t * 10) * 0.06);
+    ctx.font = `${clamp(L.tank.h * 0.55, 26, 44)}px sans-serif`;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(syrup.label, 0, 0);
+    ctx.restore();
+    // 玉の流れ
+    for (let i = 0; i < 6; i++) {
+      const u = ((t * 3.2 + i / 6) % 1);
+      const y = y0 + (y1 - y0) * u;
+      const hue = syrup.hue < 0 ? (this.pourIndex * 16 + i * 40) % 360 : syrup.hue;
+      drawBallFast(ctx, x0 + Math.sin(i * 9 + t * 8) * 3, y, L.ballR * 0.8, hue, null);
     }
+  }
 
+  _drawUI(ctx, t) {
+    const L = this.L;
+    drawSyrupButtons(ctx, L, this.selected, t);
+    drawMeter(ctx, L, this.slots.total() / this.target, t);
+    drawIconButton(ctx, L.muteBtn, this.muted ? '🔇' : '🔊', t);
+    drawIconButton(ctx, L.fanBtn, '💨', t);
+
+    if (this.phase === 'make' && !this.slots.ridgeActive) {
+      const idle = this.physics.balls.length === 0 && !this.flowStarted;
+      if (this.hopper.count() < MIN_GO && idle && this.pourPtr === null && this.slots.total() === 0) {
+        drawArrowHint(ctx, L.cx - L.tank.w * 0.34, L.tankBottom + 42, -Math.PI / 2, t);
+        drawBubbleText(ctx, 'ぼとるを えらんで たんくを ながおし!', L.cx, L.tankBottom + 78, clamp(L.h * 0.028, 15, 26), '#4a7a9b');
+      } else if (this.hopper.count() >= MIN_GO && this.leverRatio < 0.05 && idle) {
+        drawArrowHint(ctx, L.lever.x - L.lever.handleR * 2.4, (L.lever.topY + L.lever.botY) / 2, Math.PI / 2, t);
+        drawBubbleText(ctx, 'あかい ればーを したに ひっぱって GO!', L.cx, L.throatY + 26, clamp(L.h * 0.028, 15, 26), '#c2385a');
+      }
+    }
     if (this.phase === 'full') {
+      drawRainbowText(ctx, 'できあがり!', L.cx, this.itadakiBtn.y - this.itadakiBtn.h * 1.3, clamp(L.boardW * 0.1, 26, 54), t * 120);
       drawItadakimasuButton(ctx, this.itadakiBtn, this.phaseT * 1.4, t);
     }
+    drawFinishOverlay(this, ctx, t);
 
-    if (this.phase === 'itadaki') {
-      const k = easeOutBack(Math.min(1, this.phaseT * 1.8));
-      ctx.save();
-      ctx.translate(L.w / 2, L.h * 0.34);
-      ctx.scale(k, k);
-      ctx.font = `${clamp(L.h * 0.1, 56, 110)}px sans-serif`;
-      ctx.textAlign = 'center';
-      ctx.textBaseline = 'middle';
-      ctx.fillText('🙏', 0, -clamp(L.h * 0.085, 46, 90));
-      drawRainbowText(ctx, 'いただきます!', 0, clamp(L.h * 0.03, 16, 34), clamp(L.w * 0.085, 30, 64), t * 120);
-      ctx.restore();
+    // URL末尾に #debug を付けると状態を表示(開発用)
+    if (location.hash === '#debug') {
+      ctx.fillStyle = '#000';
+      ctx.font = '11px monospace';
+      ctx.textAlign = 'left';
+      const dbg = [
+        `phase=${this.phase} total=${this.slots.total()} target=${this.target}`,
+        `hopper=${this.hopper.count()} balls=${this.physics.balls.length} lever=${this.leverRatio.toFixed(2)}`,
+        `recs=[${this.slots.records.map((r) => r.length).join(',')}]`,
+      ];
+      dbg.forEach((s, i) => ctx.fillText(s, 8, L.h - 48 + i * 13));
     }
-
-    if (this.phase === 'end') {
-      drawRainbowText(ctx, 'ごちそうさまでした!', L.w / 2, this.itadakiBtn.y - this.itadakiBtn.h, clamp(L.w * 0.07, 26, 56), t * 120);
-      this._drawReplayButton(ctx, t);
-    }
-  }
-
-  _drawSpoon(ctx, t) {
-    const L = this.L;
-    // 山の一番高い所を探す
-    let topY = L.rimY, topX = L.bowlCx;
-    for (let i = 0; i < this.pile.ncol; i++) {
-      const u = (i + 0.5) / this.pile.ncol;
-      const y = this.pile.groundAt(u) - this.pile.heights[i];
-      if (y < topY) { topY = y; topX = L.bowlCx - L.bowlW / 2 + u * L.bowlW; }
-    }
-    const s = clamp(L.bowlW * 0.09, 30, 60);
-    const dig = Math.max(0, Math.sin(this.phaseT * (Math.PI * 2 / EAT_INTERVAL))) * s * 0.5;
-    ctx.save();
-    ctx.translate(topX + s * 1.2, topY - s * 1.1 + dig);
-    ctx.rotate(-0.7 + this.spoonAngle);
-    // 柄
-    ctx.fillStyle = '#f4a83c';
-    ctx.strokeStyle = '#c67f1e';
-    ctx.lineWidth = 2;
-    roundRect(ctx, -s * 0.09, -s * 1.9, s * 0.18, s * 1.6, s * 0.09);
-    ctx.fill();
-    ctx.stroke();
-    // すくう部分
-    const g = ctx.createRadialGradient(-s * 0.1, -s * 0.1, s * 0.05, 0, 0, s * 0.42);
-    g.addColorStop(0, '#ffe9c4');
-    g.addColorStop(1, '#f4a83c');
-    ctx.fillStyle = g;
-    ctx.beginPath();
-    ctx.ellipse(0, 0, s * 0.34, s * 0.44, 0, 0, TAU);
-    ctx.fill();
-    ctx.stroke();
-    ctx.restore();
-  }
-
-  _drawReplayButton(ctx, t) {
-    const b = this.replayBtn;
-    const pulse = 1 + Math.sin(t * 4.5) * 0.04;
-    const k = easeOutBack(Math.min(1, this.phaseT * 1.5));
-    const w = b.w * 0.82 * pulse * k, h = b.h * 0.9 * pulse * k;
-    if (w < 4) return;
-    ctx.save();
-    ctx.translate(b.x, b.y);
-    const g = ctx.createLinearGradient(0, -h / 2, 0, h / 2);
-    g.addColorStop(0, '#7fd4ff');
-    g.addColorStop(1, '#3ba7e8');
-    ctx.fillStyle = g;
-    roundRect(ctx, -w / 2, -h / 2, w, h, h / 2);
-    ctx.fill();
-    ctx.strokeStyle = '#ffffff';
-    ctx.lineWidth = 5;
-    ctx.stroke();
-    drawBubbleText(ctx, '🔁 もういっかい!', 0, 0, h * 0.4, '#ffffff', 'rgba(30,100,160,0.9)', 0.16);
-    ctx.restore();
   }
 }

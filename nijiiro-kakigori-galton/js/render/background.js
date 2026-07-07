@@ -61,9 +61,6 @@ export class Background {
 
     // 雲
     for (const c of this.clouds) this._cloud(ctx, c, t);
-
-    // 祭りのガーランド(三角の旗)
-    this._garland(ctx, t);
   }
 
   _sun(ctx, x, y, r, t) {
@@ -115,32 +112,4 @@ export class Background {
     ctx.fill();
   }
 
-  _garland(ctx, t) {
-    const { w } = this;
-    const y0 = 6, sag = 26;
-    const n = Math.max(8, Math.round(w / 70));
-    ctx.strokeStyle = 'rgba(255,255,255,0.8)';
-    ctx.lineWidth = 2;
-    ctx.beginPath();
-    ctx.moveTo(0, y0);
-    ctx.quadraticCurveTo(w / 2, y0 + sag * 2, w, y0);
-    ctx.stroke();
-    for (let i = 0; i < n; i++) {
-      const u = (i + 0.5) / n;
-      const x = u * w;
-      const y = y0 + 4 * sag * u * (1 - u) * 2;
-      const sway = Math.sin(t * 1.6 + i) * 0.06;
-      ctx.save();
-      ctx.translate(x, y);
-      ctx.rotate(sway);
-      ctx.fillStyle = `hsl(${(i * 47) % 360} 78% 66%)`;
-      ctx.beginPath();
-      ctx.moveTo(-11, 0);
-      ctx.lineTo(11, 0);
-      ctx.lineTo(0, 22);
-      ctx.closePath();
-      ctx.fill();
-      ctx.restore();
-    }
-  }
 }

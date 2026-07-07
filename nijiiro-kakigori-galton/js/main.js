@@ -11,3 +11,6 @@ const title = new TitleScene(() => engine.setScene(play));
 
 engine.setScene(title);
 engine.start();
+
+// デバッグ・自動テスト用の参照
+window.__game = { engine, play, title };

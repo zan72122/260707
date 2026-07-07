@@ -64,7 +64,7 @@ function conicRainbow(ctx, r, t) {
 
 // できあがりメーター(かき氷カップが満ちていく)
 export function drawMeter(ctx, L, ratio, t) {
-  const x = 16, y = 16, w = 46, h = 64;
+  const x = L.meter.x, y = L.meter.y, w = 46, h = 64;
   ctx.save();
   ctx.translate(x, y);
   // カップ
@@ -168,6 +168,31 @@ function rr(ctx, x, y, w, h, r) {
   ctx.arcTo(x, y + h, x, y, rr2);
   ctx.arcTo(x, y, x + w, y, rr2);
   ctx.closePath();
+}
+
+// ぴょこぴょこ跳ねる案内矢印(4歳児向けの誘導)
+export function drawArrowHint(ctx, x, y, angle, t, label = '') {
+  const hop = Math.abs(Math.sin(t * 4)) * 10;
+  ctx.save();
+  ctx.translate(x - Math.cos(angle) * hop, y - Math.sin(angle) * hop);
+  ctx.rotate(angle);
+  ctx.fillStyle = '#ff6f9c';
+  ctx.strokeStyle = '#ffffff';
+  ctx.lineWidth = 4;
+  ctx.lineJoin = 'round';
+  ctx.beginPath();
+  ctx.moveTo(-10, -16);
+  ctx.lineTo(12, -16);
+  ctx.lineTo(12, -26);
+  ctx.lineTo(34, 0);
+  ctx.lineTo(12, 26);
+  ctx.lineTo(12, 16);
+  ctx.lineTo(-10, 16);
+  ctx.closePath();
+  ctx.stroke();
+  ctx.fill();
+  ctx.restore();
+  if (label) drawBubbleText(ctx, label, x - Math.cos(angle) * 60, y - Math.sin(angle) * 60 - 34, 20, '#4a7a9b', '#ffffff', 0.24);
 }
 
 export function hitCircle(px, py, btn, pad = 8) {
