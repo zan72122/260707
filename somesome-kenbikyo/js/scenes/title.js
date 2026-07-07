@@ -78,7 +78,6 @@ export class TitleScene extends Phaser.Scene {
   drawButton(L) {
     const w = Math.min(L.short * 0.6, 300), h = Math.min(L.short * 0.2, 96);
     this.btn.setSize(w, h);
-    this.btn.input.hitArea.setTo(-w / 2, -h / 2, w, h);
     const g = this.btnG; g.clear();
     g.fillStyle(0x2b3f8f, 0.4); g.fillRoundedRect(-w / 2, -h / 2 + 6, w, h, h / 2);
     g.fillStyle(0xff7fb0, 1); g.fillRoundedRect(-w / 2, -h / 2, w, h, h / 2);
