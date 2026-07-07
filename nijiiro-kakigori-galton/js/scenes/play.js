@@ -484,35 +484,17 @@ export class PlayScene {
     }
     drawFinishOverlay(this, ctx, t);
 
+    // URL末尾に #debug を付けると状態を表示(開発用)
     if (location.hash === '#debug') {
       ctx.fillStyle = '#000';
       ctx.font = '11px monospace';
       ctx.textAlign = 'left';
-      let slotPix = 0;
-      let bbox = '';
-      try {
-        const cw = this.slots.canvas.width, ch = this.slots.canvas.height;
-        const img = this.slots.octx.getImageData(0, 0, cw, ch).data;
-        let minX = 1e9, maxX = -1, minY = 1e9, maxY = -1;
-        for (let i = 3; i < img.length; i += 16) {
-          if (img[i] > 0) {
-            slotPix++;
-            const p = (i - 3) / 4;
-            const px = p % cw, py = (p / cw) | 0;
-            if (px < minX) minX = px;
-            if (px > maxX) maxX = px;
-            if (py < minY) minY = py;
-            if (py > maxY) maxY = py;
-          }
-        }
-        bbox = maxX >= 0 ? `x${minX}-${maxX} y${minY}-${maxY} ch=${ch}` : 'empty';
-      } catch (e) { slotPix = -1; }
       const dbg = [
-        `phase=${this.phase} total=${this.slots.total()} target=${this.target} slotPix=${slotPix} bbox=${bbox}`,
+        `phase=${this.phase} total=${this.slots.total()} target=${this.target}`,
         `hopper=${this.hopper.count()} balls=${this.physics.balls.length} lever=${this.leverRatio.toFixed(2)}`,
         `recs=[${this.slots.records.map((r) => r.length).join(',')}]`,
       ];
-      dbg.forEach((s, i) => ctx.fillText(s, 8, L.h - 60 + i * 13));
+      dbg.forEach((s, i) => ctx.fillText(s, 8, L.h - 48 + i * 13));
     }
   }
 }
