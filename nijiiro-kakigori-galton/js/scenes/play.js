@@ -131,6 +131,7 @@ export class PlayScene {
     const lv = L.lever;
     if (Math.abs(x - lv.x) < lv.handleR * 2.4 && y > lv.topY - lv.handleR * 2 && y < lv.botY + lv.handleR * 2.6) {
       this.leverPtr = id;
+      this.leverDown = { y, t: performance.now(), moved: 0 };
       this._setLever(y);
       return;
     }
@@ -153,11 +154,21 @@ export class PlayScene {
   }
 
   onMove(x, y, id) {
-    if (id === this.leverPtr) this._setLever(y);
+    if (id === this.leverPtr) {
+      if (this.leverDown) this.leverDown.moved = Math.max(this.leverDown.moved, Math.abs(y - this.leverDown.y));
+      this._setLever(y);
+    }
   }
 
   onUp(x, y, id) {
-    if (id === this.leverPtr) this.leverPtr = null;
+    if (id === this.leverPtr) {
+      // ちょんとタップしただけなら全開にしてあげる(ドラッグが難しい子向け)
+      if (this.leverDown && this.leverDown.moved < 12 && performance.now() - this.leverDown.t < 350) {
+        this._setLever(this.L.lever.botY);
+      }
+      this.leverPtr = null;
+      this.leverDown = null;
+    }
     if (id === this.pourPtr) this.pourPtr = null;
   }
 
