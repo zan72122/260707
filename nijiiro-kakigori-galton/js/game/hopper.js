@@ -86,7 +86,11 @@ export class Hopper {
 
   _rebake() {
     if (!this.L) return;
+    // dprが1未満の環境でも全域が消えるよう、変換をリセットして消去する
+    this.octx.save();
+    this.octx.setTransform(1, 0, 0, 1, 0, 0);
     this.octx.clearRect(0, 0, this.canvas.width, this.canvas.height);
+    this.octx.restore();
     this.bakeIndex = 0;
     this.drained = 0;
     for (const rec of this.queue) this._bakeAt(rec, this.bakeIndex++);

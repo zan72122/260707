@@ -118,7 +118,11 @@ export class Slots {
 
   _rebake() {
     if (!this.L) return;
+    // dprが1未満の環境でも全域が消えるよう、変換をリセットして消去する
+    this.octx.save();
+    this.octx.setTransform(1, 0, 0, 1, 0, 0);
     this.octx.clearRect(0, 0, this.canvas.width, this.canvas.height);
+    this.octx.restore();
     for (let s = 0; s < this.records.length; s++) {
       this.records[s].forEach((rec, idx) => this._bake(rec, this._pos(s, idx)));
     }
