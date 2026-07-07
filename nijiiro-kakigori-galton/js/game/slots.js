@@ -51,10 +51,11 @@ export class Slots {
     return n;
   }
 
-  // だいたい何個で「できあがり」にするか(中央スロットの容量から推定)
+  // だいたい何個で「できあがり」にするか。
+  // 中央の柱が満ちる頃(=釣鐘型がいちばん綺麗に見える量)を狙う
   targetCount() {
     const rows = (this.L.iceY - this.L.slotTop) / this.rowH;
-    return Math.round(clamp(rows * this.perRow * this.L.nSlots * 0.42, 180, 400));
+    return Math.round(clamp(rows * this.perRow * this.L.nSlots * 0.5, 170, 340));
   }
 
   floorY(slot) {
