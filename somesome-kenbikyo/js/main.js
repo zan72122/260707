@@ -25,4 +25,4 @@ const config = {
 };
 
 // eslint-disable-next-line no-new
-new Phaser.Game(config);
+window.__game = new Phaser.Game(config);

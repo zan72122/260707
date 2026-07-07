@@ -80,8 +80,7 @@ export class GameScene extends Phaser.Scene {
     }).setOrigin(0.5);
     this.nextBtn.add([this.nextG, this.nextLabel]);
     this.nextBtn.setSize(96, 96);
-    this.nextBtn.setInteractive(new Phaser.Geom.Circle(0, 0, 48), Phaser.Geom.Circle.Contains);
-    this.nextBtn.on('pointerdown', (p, lx, ly, ev) => { ev.stopPropagation(); this.advance(); });
+    this.nextR = 48;
     this.nextBtn.visible = false;
   }
 
@@ -132,8 +131,8 @@ export class GameScene extends Phaser.Scene {
 
   drawNextButton() {
     const r = Math.min(this.L.short * 0.09, 52);
+    this.nextR = r;
     this.nextBtn.setSize(r * 2, r * 2);
-    this.nextBtn.input.hitArea.setTo(0, 0, r);
     const g = this.nextG; g.clear();
     g.fillStyle(0x1a7a3a, 0.4); g.fillCircle(0, 6, r);
     g.fillStyle(0x3ec16b, 1); g.fillCircle(0, 0, r);
@@ -221,6 +220,11 @@ export class GameScene extends Phaser.Scene {
     audio.unlock();
     const s = this.step;
     if (!s) return;
+    // ✓ ボタンの当たり判定(グローバル入力で処理し、取りこぼしを防ぐ)
+    if (this.nextBtn.visible) {
+      const dx = p.x - this.nextX, dy = p.y - this.nextY;
+      if (dx * dx + dy * dy <= this.nextR * this.nextR * 1.4) { this.advance(); return; }
+    }
     if (s.type === 'scope') { if (this.isInJar(p.x, p.y)) this.gotoScope(); return; }
     if (s.type === 'cover') { if (this.isInJar(p.x, p.y)) this.doCover(); return; }
     if (!this.isInJar(p.x, p.y)) return;

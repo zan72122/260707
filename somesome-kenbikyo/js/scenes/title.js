@@ -28,18 +28,9 @@ export class TitleScene extends Phaser.Scene {
     }).setOrigin(0.5);
     this.btn.add([this.btnG, this.btnLabel]);
     this.btn.setSize(240, 88);
-    this.btn.setInteractive(new Phaser.Geom.Rectangle(-120, -44, 240, 88), Phaser.Geom.Rectangle.Contains);
-    this.btn.on('pointerdown', () => {
-      audio.unlock();
-      audio.praise();
-      this.tweens.add({
-        targets: this.btn, scaleX: 0.92, scaleY: 0.92, duration: 90, yoyo: true,
-        onComplete: () => {
-          this.cameras.main.fadeOut(300, 5, 12, 22);
-          this.time.delayedCall(320, () => this.scene.start('Game'));
-        },
-      });
-    });
+    // 画面のどこをタップしても始められる(4歳向け・入力の取りこぼし防止)
+    this.started = false;
+    this.input.on('pointerdown', () => this.start());
 
     this.tweens.add({ targets: this.btn, scaleX: 1.06, scaleY: 1.06, duration: 900, yoyo: true, repeat: -1, ease: 'Sine.inOut' });
 
@@ -54,6 +45,20 @@ export class TitleScene extends Phaser.Scene {
     this.layout();
     this.scale.on('resize', this.layout, this);
     this.cameras.main.fadeIn(400, 5, 12, 22);
+  }
+
+  start() {
+    if (this.started) return;
+    this.started = true;
+    audio.unlock();
+    audio.praise();
+    this.tweens.add({
+      targets: this.btn, scaleX: 0.92, scaleY: 0.92, duration: 90, yoyo: true,
+      onComplete: () => {
+        this.cameras.main.fadeOut(300, 5, 12, 22);
+        this.time.delayedCall(320, () => this.scene.start('Game'));
+      },
+    });
   }
 
   layout() {

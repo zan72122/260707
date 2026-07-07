@@ -63,8 +63,20 @@ export class MicroscopeScene extends Phaser.Scene {
   }
 
   setupInput() {
-    this.knob.setInteractive(new Phaser.Geom.Circle(0, 0, 44), Phaser.Geom.Circle.Contains);
-    this.knob.on('pointerdown', () => { audio.unlock(); this.tapFocus(); });
+    // コンテナの当たり判定に頼らず、グローバル入力で座標判定(取りこぼし防止)
+    this.panelBtns = [];
+    this.input.on('pointerdown', (p) => {
+      audio.unlock();
+      if (this.state === 'done' && this.panelBtns.length) {
+        for (const b of this.panelBtns) {
+          const dx = p.x - (this.panel.x + b.x), dy = p.y - (this.panel.y + b.y);
+          if (dx * dx + dy * dy <= b.r * b.r * 1.5) { audio.tap(); b.cb(); return; }
+        }
+        return;
+      }
+      if (this.hit(p, this.knob, this.knobR)) { this.tapFocus(); return; }
+      if (this.hit(p, this.zoomBtn, this.zoomR)) { this.doZoom(); return; }
+    });
     this.input.on('pointermove', (p) => {
       if (this.state !== 'focus' || !p.isDown) return;
       const a = Math.atan2(p.y - this.knob.y, p.x - this.knob.x);
@@ -78,8 +90,11 @@ export class MicroscopeScene extends Phaser.Scene {
       this.focusAngle = a;
     });
     this.input.on('pointerup', () => { this.focusAngle = null; });
-    this.zoomBtn.setInteractive(new Phaser.Geom.Circle(0, 0, 44), Phaser.Geom.Circle.Contains);
-    this.zoomBtn.on('pointerdown', () => { audio.unlock(); this.doZoom(); });
+  }
+
+  hit(p, obj, r) {
+    const dx = p.x - obj.x, dy = p.y - obj.y;
+    return dx * dx + dy * dy <= r * r * 1.5;
   }
 
   tapFocus(step = 0.12) {
@@ -160,8 +175,7 @@ export class MicroscopeScene extends Phaser.Scene {
     const t = this.add.text(0, 0, icon, { fontSize: `${r}px` }).setOrigin(0.5);
     c.add([g, t]);
     c.setSize(r * 2, r * 2);
-    c.setInteractive(new Phaser.Geom.Circle(0, 0, r), Phaser.Geom.Circle.Contains);
-    c.on('pointerdown', () => { audio.tap(); cb(); });
+    this.panelBtns.push({ x, y, r, cb });
     return c;
   }
 
@@ -199,9 +213,9 @@ export class MicroscopeScene extends Phaser.Scene {
 
   drawControls() {
     const r = Math.min(this.L.short * 0.085, 46);
+    this.knobR = r; this.zoomR = r;
     [[this.knob, this.knobG, this.knobIcon, 0x5b7fd6], [this.zoomBtn, this.zoomG, this.zoomIcon, 0xf25c9a]].forEach(([c, g, ic]) => {
       c.setSize(r * 2, r * 2);
-      c.input.hitArea.setTo(0, 0, r);
       g.clear();
       g.fillStyle(0x1d3552, 1); g.fillCircle(0, 0, r);
       g.lineStyle(4, 0xffffff, 0.8); g.strokeCircle(0, 0, r);
