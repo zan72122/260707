@@ -11,17 +11,17 @@ export const SYRUPS = [
   { id: 'rainbow', name: 'にじいろ', hue: -1,  label: '🌈' },
 ];
 
+// にじいろはなめらかなグラデーションになる(注ぐほど色相が回る)
 export function syrupColor(syrup, seed = 0) {
-  const hue = syrup.hue < 0 ? (seed * 47) % 360 : syrup.hue;
-  return hue;
+  const hue = syrup.hue < 0 ? (seed * 16) % 360 : syrup.hue + (seed % 5) - 2;
+  return ((hue % 360) + 360) % 360;
 }
 
-// たまに降ってくる特別なトッピング粒
+// たまに混ざる特別なトッピング粒(物理サイズは同じ、見た目だけ特別)
 export const SPECIALS = [
-  { kind: 'star',   chance: 0.05, size: 1.7, msg: 'きらーん!' },
-  { kind: 'heart',  chance: 0.04, size: 1.6, msg: 'だいすき!' },
-  { kind: 'cherry', chance: 0.03, size: 1.8, msg: 'さくらんぼ!' },
-  { kind: 'candy',  chance: 0.05, size: 1.5, msg: 'あめちゃん!' },
+  { kind: 'star',  chance: 0.020, msg: 'きらーん!' },
+  { kind: 'heart', chance: 0.016, msg: 'だいすき!' },
+  { kind: 'candy', chance: 0.018, msg: 'あめちゃん!' },
 ];
 
 export function rollSpecial() {
@@ -34,5 +34,8 @@ export function rollSpecial() {
   return null;
 }
 
+// 金の玉はだいたいこの個数ごとに1個まざる
+export const GOLD_EVERY = 75;
+
 // ごほうびの掛け声
-export const CHEERS = ['わーい!', 'すごい!', 'きれい!', 'やったー!', 'おいしそう!', 'ふわふわ~'];
+export const CHEERS = ['わーい!', 'すごい!', 'きれい!', 'やったー!', 'おいしそう!', 'じゃらじゃら~'];
