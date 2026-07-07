@@ -127,10 +127,9 @@ export class PlayScene {
     if (this.phase === 'end' && hitRect(x, y, this.replayBtn)) { this._reset(); return; }
     if (this.phase !== 'make') return;
 
-    // レバーをつかむ
+    // レバーをつかむ(レールのどこを触ってもOKにして4歳児でも失敗しない)
     const lv = L.lever;
-    const ly = lv.topY + (lv.botY - lv.topY) * this.leverRatio;
-    if ((x - lv.x) ** 2 + (y - ly) ** 2 < (lv.handleR * 2.1) ** 2) {
+    if (Math.abs(x - lv.x) < lv.handleR * 2.4 && y > lv.topY - lv.handleR * 2 && y < lv.botY + lv.handleR * 2.6) {
       this.leverPtr = id;
       this._setLever(y);
       return;
