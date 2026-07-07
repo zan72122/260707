@@ -338,6 +338,8 @@ export class PlayScene {
         audio.goron();
         this.fx.floatText(this.L.cx, this.L.throatY - 20, 'おおきい いちご!? たっちして わってね!', 350, clamp(this.L.h * 0.028, 16, 26));
       }
+      // 巨大玉が長く放置されたら自動で割れる(進行が止まらないように)
+      if (this.physics.giant && this.physics.giant.restT > 10) this._burstGiant();
       // レバーの自動復帰(流し終わったら)
       if (this.leverPtr === null && this.leverRatio > 0 && this.hopper.count() === 0 && this.physics.balls.length === 0 && !this.physics.giant) {
         this.leverRatio = Math.max(0, this.leverRatio - dt * 2.2);

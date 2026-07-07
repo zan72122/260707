@@ -64,7 +64,7 @@ function conicRainbow(ctx, r, t) {
 
 // できあがりメーター(かき氷カップが満ちていく)
 export function drawMeter(ctx, L, ratio, t) {
-  const x = 16, y = 16, w = 46, h = 64;
+  const x = L.meter.x, y = L.meter.y, w = 46, h = 64;
   ctx.save();
   ctx.translate(x, y);
   // カップ

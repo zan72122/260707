@@ -66,6 +66,16 @@ export class Slots {
   }
 
   add(slot, rec) {
+    // スロットが仕切りの上まで満杯なら、砂山のように低い隣へ転がす
+    for (let k = 0; k < 8; k++) {
+      const fy = this.floorY(slot);
+      if (fy > this.L.slotTop + this.L.ballR) break;
+      const fl = slot > 0 ? this.floorY(slot - 1) : -Infinity;
+      const fr = slot < this.L.nSlots - 1 ? this.floorY(slot + 1) : -Infinity;
+      if (fl > fy + this.rowH * 0.5 && fl >= fr) slot -= 1;
+      else if (fr > fy + this.rowH * 0.5) slot += 1;
+      else break;
+    }
     const idx = this.records[slot].length;
     this.records[slot].push(rec);
     const p = this._pos(slot, idx);
