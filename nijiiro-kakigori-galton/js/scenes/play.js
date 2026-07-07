@@ -140,12 +140,13 @@ export class PlayScene {
       this._burstGiant();
       return;
     }
-    // ピンいたずら(ゲートが閉じていて玉が流れていない時だけ)
-    if (this.leverRatio < 0.05 && this.physics.balls.length === 0 && y > L.pinTop - 10 && y < L.slotTop) {
-      if (this._togglePin(x, y)) return;
+    // ピンいたずら(ゲート閉+玉なしの時に、ピンを正確にタップした時だけ)
+    if (this.leverRatio < 0.05 && this.physics.balls.length === 0 &&
+        y > L.pinTop - 10 && y < L.slotTop && this._togglePin(x, y)) {
+      return;
     }
-    // タンク周辺の長押しで注ぐ
-    if (y < L.throatY + 10 && x > L.boardX - 20 && x < L.boardX + L.boardW + 20) {
+    // それ以外の上半分はどこを長押ししても注げる(4歳児でも迷わない)
+    if (y < L.iceY) {
       this.pourPtr = id;
       audio.pour();
     }
@@ -181,7 +182,7 @@ export class PlayScene {
 
   _togglePin(x, y) {
     const L = this.L;
-    let best = null, bestD = (L.pinR + 20) ** 2;
+    let best = null, bestD = (L.pinR + 9) ** 2;
     for (const pin of L.pins) {
       const d = (x - pin.x) ** 2 + (y - pin.y) ** 2;
       if (d < bestD) { bestD = d; best = pin; }
