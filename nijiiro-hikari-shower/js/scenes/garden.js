@@ -7,12 +7,12 @@ import { drawGardenBackground, drawLeafDrops, drawMistRainbows, drawBug } from '
 import { RAINBOW, clamp, dist, rand } from '../core/utils.js';
 import { audio } from '../core/audio.js';
 
-const DISCOVERIES = 6;
+const DISCOVERIES = 11; // シーン固有6 + 共通コンボ5
 const MIST_LIFETIME = 3.2;
 
 export class GardenScene extends SceneBase {
   constructor(engine) {
-    super(engine, 'garden', DISCOVERIES, { sunMode: true, spread: 0.085 });
+    super(engine, 'garden', DISCOVERIES, { source: 'sun', spread: 0.085 });
     this.flowers = [];
     this.drops = [];
     this.mistClouds = []; // {x,y,t,rainbow}
@@ -94,6 +94,29 @@ export class GardenScene extends SceneBase {
     }
   }
 
+  // 長押しダンス: お花がるんるん、霧吹きは連続シュッシュ
+  objectDance(obj) {
+    if (obj.kind === 'flower') {
+      obj.f.dance = 1;
+      audio.bloom();
+      for (let i = 0; i < 6; i++) {
+        this.engine.particles.petal(obj.f.x, obj.f.y - 8, RAINBOW[(Math.random() * 7) | 0].hex);
+      }
+    } else if (obj.kind === 'spray') {
+      this._doSpray();
+      setTimeout(() => this._doSpray(), 250);
+    }
+  }
+
+  extraHints() {
+    const f = this.flowers[0];
+    return [
+      { x: this.spray.x, y: this.spray.y },
+      ...(f ? [{ x: f.x, y: f.y }] : []),
+      { x: this.puddle.x, y: this.puddle.y },
+    ];
+  }
+
   sceneUpdate(dt) {
     this.spray.squeeze = Math.max(0, this.spray.squeeze - dt * 4);
     this._updateFlowers(dt);
@@ -107,6 +130,7 @@ export class GardenScene extends SceneBase {
     let bloomed = 0;
     for (const f of this.flowers) {
       f.glow = Math.max(0, f.glow - dt);
+      f.dance = Math.max(0, (f.dance ?? 0) - dt * 0.5);
       const hits = this.rig.colorsAt(f.x, f.y, 42);
       for (const ci of hits) {
         const idx = ci % f.petals.length;

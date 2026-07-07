@@ -7,14 +7,14 @@ import { drawBathBackground, drawBathWater, drawDuck, drawBubble, drawSteamRainb
 import { RAINBOW, TAU, clamp, dist, rand } from '../core/utils.js';
 import { audio } from '../core/audio.js';
 
-const DISCOVERIES = 6;
+const DISCOVERIES = 11; // シーン固有6 + 共通コンボ5
 const YELLOW = 2; // RAINBOWのきいろindex
 const MAX_BUBBLES = 14;
 const POP_GOAL = 5;
 
 export class BathScene extends SceneBase {
   constructor(engine) {
-    super(engine, 'bath', DISCOVERIES, { sunMode: false, spread: 0.08 });
+    super(engine, 'bath', DISCOVERIES, { source: 'flash', spread: 0.08 });
     this.bubbles = []; // {x,y,r,vx,vy,shine,hue,wob}
     this.mirror = { x: 0, y: 0, rot: 0.5, len: 150 };
     this.duck = { x: 0, y: 0, glow: 0, phase: 0 };
@@ -111,8 +111,27 @@ export class BathScene extends SceneBase {
     }
   }
 
+  // 長押しダンス: アヒルがぴょんぴょんはねる
+  objectDance(obj) {
+    if (obj.kind === 'duck') {
+      this.duck.jump = 1;
+      audio.quack();
+      setTimeout(() => audio.quack(), 220);
+    } else if (obj === this.mirror) {
+      this.engine.particles.burst(this.mirror.x, this.mirror.y, '#dff3ff', 12, 100);
+    }
+  }
+
+  extraHints() {
+    return [
+      { x: this.duck.x, y: this.duck.y - 20 },
+      { x: this.mirror.x, y: this.mirror.y },
+    ];
+  }
+
   sceneUpdate(dt) {
-    this.rig.mirrors = [mirrorSegment(this.mirror)];
+    this.rig.mirrors.push(mirrorSegment(this.mirror));
+    this.duck.jump = Math.max(0, (this.duck.jump ?? 0) - dt * 0.9);
     this.duck.phase += dt;
     this.duck.x += Math.sin(this.duck.phase * 0.4) * 10 * dt;
     this.duck.y = this.waterY + Math.sin(this.duck.phase * 1.8) * 5;

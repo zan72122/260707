@@ -55,9 +55,10 @@ export function drawBathWater(ctx, s) {
 
 export function drawDuck(ctx, s) {
   const d = s.duck;
-  const tilt = Math.sin(d.phase * 1.8) * 0.08;
+  const jump = d.jump ?? 0;
+  const tilt = Math.sin(d.phase * 1.8) * 0.08 + Math.sin(s.time * 12) * 0.18 * jump;
   ctx.save();
-  ctx.translate(d.x, d.y);
+  ctx.translate(d.x, d.y - Math.abs(Math.sin(s.time * 7)) * 34 * jump);
   ctx.rotate(tilt);
   if (d.glow > 0) drawGlow(ctx, 0, -10, 90, '#ffe066', d.glow * 0.7);
   // からだ
