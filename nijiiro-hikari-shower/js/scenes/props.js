@@ -4,10 +4,12 @@
 import { TAU, drawGlow, mixHex, rgba, roundRect } from '../core/utils.js';
 
 // 花: petals配列に花びらごとの色(hexまたはnull=白)とbloom(0..1)を持つ
+// f.dance > 0 のあいだは、るんるん踊る
 export function drawFlower(ctx, f, time) {
-  const sway = Math.sin(time * 1.3 + f.x * 0.02) * 0.05;
+  const dance = f.dance ?? 0;
+  const sway = Math.sin(time * 1.3 + f.x * 0.02) * 0.05 + Math.sin(time * 9) * 0.3 * dance;
   ctx.save();
-  ctx.translate(f.x, f.y);
+  ctx.translate(f.x, f.y - Math.abs(Math.sin(time * 8)) * 14 * dance);
   ctx.rotate(sway);
   // 茎と葉
   ctx.strokeStyle = '#5faa5f';

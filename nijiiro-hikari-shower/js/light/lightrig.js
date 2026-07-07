@@ -1,25 +1,45 @@
-// 光のリグ: 光源 → プリズム → 虹の帯(7色ファン) → 鏡での反射 までの幾何計算
-// 4歳児向けに「太くやわらかい光の帯」で表現する
+// 光のリグ: 光源・プリズム・虹の状態管理と操作・当たり判定
+// 光線の計算は rays.js、描画は render*.js が担当する
 
-import { RAINBOW, TAU, clamp, angleLerp, dist, pointSegDist, pointSegT } from '../core/utils.js';
+import { RAINBOW, TAU, clamp, angleLerp, dist, lerp, pointSegDist, pointSegT } from '../core/utils.js';
+import { computeRays } from './rays.js';
 
-const BAND_COUNT = RAINBOW.length;
-const DEFAULT_SPREAD = 0.062; // 帯1本あたりの角度差(ラジアン)
-const MAX_BOUNCE = 2;
-
-// 光線(p + t*d)と線分(a→b)の交差判定。tと交点を返す
-function raySegHit(px, py, dx, dy, ax, ay, bx, by) {
-  const sx = bx - ax;
-  const sy = by - ay;
-  const denom = dx * sy - dy * sx;
-  if (Math.abs(denom) < 1e-9) return null;
-  const t = ((ax - px) * sy - (ay - py) * sx) / denom;
-  const u = ((ax - px) * dy - (ay - py) * dx) / denom;
-  if (t > 8 && u >= 0 && u <= 1) {
-    return { t, x: px + dx * t, y: py + dy * t };
-  }
-  return null;
-}
+// 切り替えできる光とプリズムのバリエーション
+export const LIGHT_COLORS = [
+  { name: 'にじ', ci: -1, hex: '#ffffff' },
+  { name: 'あか', ci: 0, hex: RAINBOW[0].hex },
+  { name: 'きいろ', ci: 2, hex: RAINBOW[2].hex },
+  { name: 'あお', ci: 5, hex: RAINBOW[5].hex },
+];
+export const WIDTH_LEVELS = [
+  { name: 'ほそい', scale: 0.55 },
+  { name: 'ふつう', scale: 1 },
+  { name: 'ふとい', scale: 1.7 },
+];
+export const BEAM_SHAPES = [
+  { name: 'まっすぐ', id: 'line' },
+  { name: 'ハート', id: 'heart' },
+  { name: 'ほし', id: 'star' },
+];
+export const SOURCE_TYPES = [
+  { name: 'おひさま', id: 'sun' },
+  { name: 'でんとう', id: 'flash' },
+  { name: 'ろうそく', id: 'candle' },
+  { name: 'おつきさま', id: 'moon' },
+];
+export const PRISM_TYPES = [
+  { name: 'さんかく', id: 'triangle' },
+  { name: 'ビーだま', id: 'marble' },
+  { name: 'ダイヤ', id: 'diamond' },
+  { name: 'ハート', id: 'heart' },
+  { name: 'ほし', id: 'star' },
+  { name: 'われた', id: 'broken' },
+];
+export const SIZE_LEVELS = [
+  { name: 'ちいさい', size: 30, spread: 0.75 },
+  { name: 'ふつう', size: 46, spread: 1 },
+  { name: 'おおきい', size: 64, spread: 1.35 },
+];
 
 export class LightRig {
   constructor(engine, opts = {}) {
@@ -29,18 +49,47 @@ export class LightRig {
     this.prismX = opts.prismX ?? 300;
     this.prismY = opts.prismY ?? 300;
     this.prismRot = opts.prismRot ?? 0;
-    this.prismSize = opts.prismSize ?? 46;
     this.lightRadius = opts.lightRadius ?? 42;
-    this.sunMode = opts.sunMode ?? false; // trueなら太陽、falseなら懐中電灯
-    this.spread = opts.spread ?? DEFAULT_SPREAD;
+    this.baseSpread = opts.spread ?? 0.075;
     this.beamLength = opts.beamLength ?? 2000;
-    this.mirrors = []; // {ax, ay, bx, by} 鏡の線分
-    this.prismMovable = opts.prismMovable ?? false;
+    this.mirrors = [];
     this._targetRot = this.prismRot;
-    this.spinVel = 0; // くるくる回した勢い
-    this.rays = []; // 計算済みの虹光線 [{ci, segs:[{x1,y1,x2,y2}], hex}]
-    this.glow = 0; // プリズムのときめき度
+    this.spinVel = 0;
+    this.rays = [];
+    this.glow = 0;
+
+    // 切り替え状態
+    this.colorIndex = 0;
+    this.widthIndex = 1;
+    this.shapeIndex = 0;
+    this.sourceIndex = Math.max(0, SOURCE_TYPES.findIndex((s) => s.id === (opts.source ?? 'sun')));
+    this.prismTypeIndex = 0;
+    this.sizeIndex = 1;
+
+    // 虹つかみ(ベンド)とおまつりモード
+    this.bendX = 0;
+    this.bendY = 0;
+    this.bendHeld = false;
+    this.bendT = 0;
+    this.party = 0;
   }
+
+  // ---- 現在の状態 ----
+  get lightColor() { return LIGHT_COLORS[this.colorIndex]; }
+  get widthScale() { return WIDTH_LEVELS[this.widthIndex].scale; }
+  get beamShape() { return BEAM_SHAPES[this.shapeIndex].id; }
+  get sourceType() { return SOURCE_TYPES[this.sourceIndex].id; }
+  get prismType() { return PRISM_TYPES[this.prismTypeIndex].id; }
+  get prismSize() { return SIZE_LEVELS[this.sizeIndex].size; }
+  get spread() { return this.baseSpread * SIZE_LEVELS[this.sizeIndex].spread; }
+
+  // ---- 切り替え(トグルボタンから呼ばれる) ----
+  cycleColor() { this.colorIndex = (this.colorIndex + 1) % LIGHT_COLORS.length; return LIGHT_COLORS[this.colorIndex].name; }
+  cycleWidth() { this.widthIndex = (this.widthIndex + 1) % WIDTH_LEVELS.length; return WIDTH_LEVELS[this.widthIndex].name; }
+  cycleShape() { this.shapeIndex = (this.shapeIndex + 1) % BEAM_SHAPES.length; return BEAM_SHAPES[this.shapeIndex].name; }
+  cycleSource() { this.sourceIndex = (this.sourceIndex + 1) % SOURCE_TYPES.length; return SOURCE_TYPES[this.sourceIndex].name; }
+  cyclePrism() { this.prismTypeIndex = (this.prismTypeIndex + 1) % PRISM_TYPES.length; this.glow = 1; return PRISM_TYPES[this.prismTypeIndex].name; }
+  cycleSize() { this.sizeIndex = (this.sizeIndex + 1) % SIZE_LEVELS.length; this.glow = 1; return SIZE_LEVELS[this.sizeIndex].name; }
 
   // ---- 操作 ----
 
@@ -48,8 +97,15 @@ export class LightRig {
     return dist(x, y, this.lightX, this.lightY) < this.lightRadius + 34;
   }
 
-  hitPrism(x, y) {
-    return dist(x, y, this.prismX, this.prismY) < this.prismSize + 40;
+  // プリズム中心: つかんで移動
+  hitPrismBody(x, y) {
+    return dist(x, y, this.prismX, this.prismY) < this.prismSize * 1.05;
+  }
+
+  // プリズムの外周リング: くるくる回す
+  hitPrismRing(x, y) {
+    const d = dist(x, y, this.prismX, this.prismY);
+    return d >= this.prismSize * 1.05 && d < this.prismSize + 72;
   }
 
   dragLight(x, y, W, H) {
@@ -58,12 +114,11 @@ export class LightRig {
   }
 
   dragPrism(x, y, W, H) {
-    if (!this.prismMovable) return;
-    this.prismX = clamp(x, 60, W - 60);
-    this.prismY = clamp(y, 60, H - 60);
+    this.prismX = clamp(x, 50, W - 50);
+    this.prismY = clamp(y, 50, H - 50);
+    this.glow = Math.min(1, this.glow + 0.02);
   }
 
-  // 指の位置に向けてプリズムを回す(くるくる)
   spinPrismToward(x, y, dt) {
     const a = Math.atan2(y - this.prismY, x - this.prismX);
     const prev = this._targetRot;
@@ -76,104 +131,77 @@ export class LightRig {
   }
 
   releaseSpin() {
-    // 離したあとも勢いでくるくる回る(楽しい!)
     this.spinVel *= 0.9;
+  }
+
+  // 虹つかみ: 指の位置に虹の帯を引き寄せる
+  grabBend(x, y) {
+    this.bendX = x;
+    this.bendY = y;
+    this.bendHeld = true;
+  }
+
+  moveBend(x, y) {
+    this.bendX = x;
+    this.bendY = y;
+  }
+
+  releaseBend() {
+    this.bendHeld = false;
+  }
+
+  startParty() {
+    this.party = 6;
   }
 
   // ---- 更新 ----
 
   update(dt) {
-    // 回転の追従と慣性
     this.prismRot = angleLerp(this.prismRot, this._targetRot, 1 - Math.pow(0.001, dt));
     if (Math.abs(this.spinVel) > 0.05) {
       this._targetRot += this.spinVel * dt;
       this.spinVel *= Math.pow(0.35, dt);
     }
     this.glow = Math.max(0, this.glow - dt * 0.8);
-    this._computeRays();
+    this.party = Math.max(0, this.party - dt);
+
+    // ベンドはつかむとふわっと効き、離すと直線へ戻る(ばね感)
+    const target = this.bendHeld ? 1 : 0;
+    this.bendT = lerp(this.bendT, target, 1 - Math.pow(0.002, dt));
+    if (!this.bendHeld && this.bendT > 0.02) {
+      // 離したあと、つかんだ点が元の直線上へすべり戻る
+      const a = this.exitAngle();
+      const t = Math.max(60, pointSegT(this.bendX, this.bendY, this.prismX, this.prismY,
+        this.prismX + Math.cos(a) * 600, this.prismY + Math.sin(a) * 600) * 600);
+      const fx = this.prismX + Math.cos(a) * t;
+      const fy = this.prismY + Math.sin(a) * t;
+      const k = 1 - Math.pow(0.02, dt);
+      this.bendX = lerp(this.bendX, fx, k);
+      this.bendY = lerp(this.bendY, fy, k);
+    }
+
+    this.rays = computeRays(this);
   }
 
-  // 入射角に応じた虹の射出方向
   exitAngle() {
     const inAngle = Math.atan2(this.prismY - this.lightY, this.prismX - this.lightX);
-    // プリズム回転で屈折の曲がりが変わる(物理的正確さより遊びやすさ優先)
     const bend = Math.sin(this.prismRot * 1.5) * 0.9;
     return inAngle + bend;
   }
 
-  _computeRays() {
-    this.rays = [];
-    const base = this.exitAngle();
-    const mid = (BAND_COUNT - 1) / 2;
-    for (let ci = 0; ci < BAND_COUNT; ci++) {
-      const a = base + (ci - mid) * this.spread;
-      // 出口を色ごとに少し横へずらし、プリズム付近でも色が分かれて見えるようにする
-      const off = (ci - mid) * this.prismSize * 0.3;
-      const cx = this.prismX + Math.cos(a + Math.PI / 2) * off;
-      const cy = this.prismY + Math.sin(a + Math.PI / 2) * off;
-      const segs = this._traceRay(cx, cy, Math.cos(a), Math.sin(a));
-      this.rays.push({ ci, hex: RAINBOW[ci].hex, segs });
-    }
-  }
-
-  _traceRay(px, py, dx, dy) {
-    const segs = [];
-    let x = px;
-    let y = py;
-    let dirX = dx;
-    let dirY = dy;
-    let remaining = this.beamLength;
-    for (let bounce = 0; bounce <= MAX_BOUNCE; bounce++) {
-      let bestT = remaining;
-      let bestMirror = null;
-      let bestHit = null;
-      for (const m of this.mirrors) {
-        const hit = raySegHit(x, y, dirX, dirY, m.ax, m.ay, m.bx, m.by);
-        if (hit && hit.t < bestT) {
-          bestT = hit.t;
-          bestMirror = m;
-          bestHit = hit;
-        }
-      }
-      const ex = x + dirX * bestT;
-      const ey = y + dirY * bestT;
-      segs.push({ x1: x, y1: y, x2: ex, y2: ey, dx: dirX, dy: dirY });
-      if (!bestMirror) break;
-      // 鏡の法線で反射
-      const mx = bestMirror.bx - bestMirror.ax;
-      const my = bestMirror.by - bestMirror.ay;
-      const len = Math.hypot(mx, my) || 1;
-      let nx = -my / len;
-      let ny = mx / len;
-      if (nx * dirX + ny * dirY > 0) {
-        nx = -nx;
-        ny = -ny;
-      }
-      const dot = dirX * nx + dirY * ny;
-      dirX = dirX - 2 * dot * nx;
-      dirY = dirY - 2 * dot * ny;
-      x = bestHit.x + dirX * 2;
-      y = bestHit.y + dirY * 2;
-      remaining -= bestT;
-      if (remaining <= 20) break;
-    }
-    return segs;
-  }
-
   // ---- 当たり判定 ----
 
-  // 点(x,y)に当たっている色indexの配列を返す
   colorsAt(x, y, radius = 30) {
     const found = [];
     for (const ray of this.rays) {
       for (const s of ray.segs) {
         const t = pointSegT(x, y, s.x1, s.y1, s.x2, s.y2);
-        if (t < 0.02) continue; // プリズム至近は除外
+        if (t < 0.02) continue;
         const d = pointSegDist(x, y, s.x1, s.y1, s.x2, s.y2);
         const distAlong = t * dist(s.x1, s.y1, s.x2, s.y2);
-        const bandHalf = this.bandHalfWidth(distAlong);
+        const bandHalf = this.bandHalfWidth(distAlong) * (ray.wBoost ?? 1);
         if (d < radius + bandHalf) {
-          found.push(ray.ci);
+          if (!found.includes(ray.ci)) found.push(ray.ci);
           break;
         }
       }
@@ -181,13 +209,7 @@ export class LightRig {
     return found;
   }
 
-  // 距離に応じて帯が太くなる
   bandHalfWidth(distAlong) {
-    return 9 + distAlong * 0.018;
-  }
-
-  // 白い光がプリズムに届いているか(遮蔽は現状なし=常にtrue)
-  isLit() {
-    return true;
+    return (9 + distAlong * 0.018) * this.widthScale;
   }
 }
