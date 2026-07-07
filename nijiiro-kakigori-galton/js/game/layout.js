@@ -105,8 +105,10 @@ export function computeLayout(w, h) {
     for (let i = 0; i < n; i++) L.buttons.push({ x, y: y0 + i * bh, r });
   }
 
-  // 各種ボタン
-  L.muteBtn = { x: portrait ? w - 32 : L.boardX + L.boardW - 26, y: 32, r: 20 };
+  // 各種ボタン(ミュートはレバーの当たり判定と重ねない)
+  L.muteBtn = portrait
+    ? { x: w - 30, y: L.lever.botY + handleR * 4.2, r: 18 }
+    : { x: L.boardX + L.boardW - 26, y: 32, r: 20 };
   // うちわボタンはレバーから離す(誤タップ防止)
   L.fanBtn = {
     x: L.boardX + L.slotW * 0.85,
