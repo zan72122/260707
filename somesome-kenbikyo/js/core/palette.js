@@ -18,11 +18,11 @@ export const LIQUID = {
 // 仕上がりの基準色
 export const RESULT = {
   // 核: 赤紫(未ブルーイング) → 青紫(ブルーイング後)
-  nucleusRedPurple: 0x8a2f6e,
-  nucleusBluePurple: 0x2e2a78,
+  nucleusRedPurple: 0x9c2f7a,
+  nucleusBluePurple: 0x3b2f9e,
   // 細胞質(エオジン): 淡いピンク → 濃いローズ
-  cytoLight: 0xffd3e2,
-  cytoDeep: 0xef6f9c,
+  cytoLight: 0xffcdde,
+  cytoDeep: 0xf2609a,
   // 背景(細胞外・組織のすきま)
   bgClean: 0xfdf3f7,
   bgBluish: 0xbcd0f0,
