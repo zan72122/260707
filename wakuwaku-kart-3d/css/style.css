@@ -1,0 +1,39 @@
+* { margin: 0; padding: 0; box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+
+html, body {
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  background: #7ec8ff;
+  touch-action: none;
+  -webkit-user-select: none;
+  user-select: none;
+  font-family: "Hiragino Maru Gothic ProN", "BIZ UDGothic", "Rounded Mplus 1c", "M PLUS Rounded 1c", sans-serif;
+  position: fixed;
+}
+
+#game-root {
+  position: fixed;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+}
+
+#game-canvas {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  display: block;
+}
+
+#ui-layer {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  overflow: hidden;
+}
+
+#ui-layer > * {
+  pointer-events: auto;
+}
