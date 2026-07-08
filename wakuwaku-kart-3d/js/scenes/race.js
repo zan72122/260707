@@ -68,7 +68,7 @@ export class RaceScene {
     this.countdown = COUNTDOWN_TIME;
     this.lastCountShown = null;
     this.raceTime = 0;
-    this.playerRank = 0;
+    this.playerRank = -1; // 初回のupdateRankAndLapで必ずHUDを更新する
     this.finishOrder = [];
     this.lastLapShown = 1;
     this.rainbowTimer = 0;
