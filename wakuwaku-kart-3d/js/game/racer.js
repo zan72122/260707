@@ -32,7 +32,8 @@ export class Racer {
     this.heading = Math.atan2(s.tangent.x, s.tangent.z);
     this.speed = 0;
     this.trackIndexHint = 0;
-    this.lap = 1;
+    // グリッドはスタートラインの手前にあるので、最初のライン通過で lap=1 になる
+    this.lap = 0;
     this.prevDistance = startDist;
     this.finished = false;
     this.finishTime = 0;
@@ -140,7 +141,7 @@ export class Racer {
     // 周回判定
     const L = this.track.totalLength;
     if (this.prevDistance > L * 0.8 && loc2.distance < L * 0.2) this.lap++;
-    else if (this.prevDistance < L * 0.2 && loc2.distance > L * 0.8) this.lap = Math.max(1, this.lap - 1);
+    else if (this.prevDistance < L * 0.2 && loc2.distance > L * 0.8) this.lap = Math.max(0, this.lap - 1);
     this.prevDistance = loc2.distance;
     this.distance = loc2.distance;
 
