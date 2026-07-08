@@ -97,6 +97,26 @@ export class Track {
     this.buildRoad();
     this.buildCurbs();
     this.buildStartGate();
+    this.buildSupports();
+  }
+
+  // 高架区間の下に支柱を立てる(道路が宙に浮いて見えないように)
+  buildSupports() {
+    const mat = new THREE.MeshStandardMaterial({ color: 0xe8e2d8, roughness: 0.8 });
+    const step = Math.floor(SAMPLE_COUNT / 48);
+    for (let i = 0; i < SAMPLE_COUNT; i += step) {
+      const { p, left } = this.samples[i];
+      if (p.y < 2.2) continue;
+      for (const side of [1, -1]) {
+        const x = p.x + left.x * this.roadHalfWidth * 0.62 * side;
+        const z = p.z + left.z * this.roadHalfWidth * 0.62 * side;
+        const h = p.y + 0.4;
+        const pillar = new THREE.Mesh(new THREE.CylinderGeometry(1.1, 1.4, h, 8), mat);
+        pillar.position.set(x, h / 2 - 0.4, z);
+        pillar.castShadow = true;
+        this.group.add(pillar);
+      }
+    }
   }
 
   buildRoad() {
@@ -179,7 +199,7 @@ export class Track {
     const s = this.samples[0];
     const gate = new THREE.Group();
     const postGeo = new THREE.CylinderGeometry(0.8, 1.0, 12, 10);
-    const postMat = new THREE.MeshStandardMaterial({ color: 0xff5f9e, roughness: 0.5 });
+    const postMat = new THREE.MeshStandardMaterial({ color: 0xff7ab5, roughness: 0.4, emissive: 0xff4488, emissiveIntensity: 0.12 });
     const hw = this.roadHalfWidth + 2;
     for (const side of [1, -1]) {
       const post = new THREE.Mesh(postGeo, postMat);

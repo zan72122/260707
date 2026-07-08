@@ -251,7 +251,8 @@ export class Scenery {
       const offset = track.roadHalfWidth + 8 + random() * 30;
       const decoObj = decorate(random);
       decoObj.position.copy(s.position).addScaledVector(s.left, offset * side);
-      decoObj.position.y = Math.max(0, decoObj.position.y - 0.3);
+      // 地形は平坦なので、装飾は必ず地面(y=0)に置く(高架区間で浮かないように)
+      decoObj.position.y = 0;
       decoObj.rotation.y = random() * TAU;
       const sc = 0.8 + random() * 0.7;
       decoObj.scale.setScalar(sc);
@@ -265,7 +266,8 @@ export class Scenery {
       const arch = makeRainbowArch(track.roadHalfWidth + 8, 1.1);
       arch.position.copy(s.position);
       arch.position.y += 0.5;
-      arch.rotation.y = Math.atan2(s.tangent.x, s.tangent.z) + Math.PI / 2;
+      // トーラスの面法線(+Z)を進行方向に向け、カートがくぐれる向きにする
+      arch.rotation.y = Math.atan2(s.tangent.x, s.tangent.z);
       this.group.add(arch);
     }
 

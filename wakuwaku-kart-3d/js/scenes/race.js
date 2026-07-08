@@ -119,7 +119,7 @@ export class RaceScene {
     const playerProgress = this.player.totalProgress;
     for (const racer of this.racers) {
       const steer = racer.isPlayer ? input.steer : 0;
-      const bumped = racer.update(dt, time, steer, raceRunning && !racer.finished ? true : raceRunning, playerProgress);
+      const bumped = racer.update(dt, time, steer, raceRunning, playerProgress);
       if (bumped && racer.isPlayer) audio.sfxBump();
 
       if (raceRunning && !racer.finished) {
