@@ -23,12 +23,19 @@ export class Racer {
     this.model = buildKart(character);
     this.group = this.model.group;
 
-    // スタート位置(グリッド: 2列)
-    const row = Math.floor(slotIndex / 2);
-    const col = slotIndex % 2 === 0 ? 1 : -1;
-    const startDist = this.track.totalLength - 8 - row * 7;
+    // スタート位置: プレイヤーは先頭中央、AIは後方に左右2列
+    // (中央レーンを空けて、カウントダウン中にカメラが遮られないようにする)
+    let row, lateralRatio;
+    if (slotIndex === 0) {
+      row = 0;
+      lateralRatio = 0;
+    } else {
+      row = Math.ceil(slotIndex / 2);
+      lateralRatio = slotIndex % 2 === 1 ? 0.42 : -0.42;
+    }
+    const startDist = this.track.totalLength - 8 - row * 6.5;
     const s = track.sampleAt(startDist);
-    this.pos = s.position.clone().addScaledVector(s.left, col * track.roadHalfWidth * 0.35);
+    this.pos = s.position.clone().addScaledVector(s.left, lateralRatio * track.roadHalfWidth);
     this.heading = Math.atan2(s.tangent.x, s.tangent.z);
     this.speed = 0;
     this.trackIndexHint = 0;
