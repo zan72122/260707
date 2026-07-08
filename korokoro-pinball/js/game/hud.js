@@ -165,9 +165,10 @@ export class Hud {
     ctx.textBaseline = 'middle';
     if (!charging) {
       const bob = Math.sin(time * 3.4) * 8;
+      const tx = x - 140; // レーンは右端なので文字は左側に出す(見切れ防止)
       ctx.font = font(30);
-      outlinedText(ctx, 'ながおしして', x, y - 118 + bob, '#ffffff', 'rgba(230,90,40,0.95)', 7);
-      outlinedText(ctx, 'はなすと ポン!', x, y - 82 + bob, '#ffffff', 'rgba(230,90,40,0.95)', 7);
+      outlinedText(ctx, 'ながおしして', tx, y - 118 + bob, '#ffffff', 'rgba(230,90,40,0.95)', 7);
+      outlinedText(ctx, 'はなすと ポン!', tx, y - 82 + bob, '#ffffff', 'rgba(230,90,40,0.95)', 7);
       // 下向き矢印
       ctx.fillStyle = '#ffde59';
       ctx.strokeStyle = 'rgba(230,90,40,0.95)';
